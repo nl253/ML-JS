@@ -1,11 +1,10 @@
 const {Classifier} = require('.');
 
-module.exports = class NaiveBayes extends Classifier {
+class NaiveBayes extends Classifier {
 
   /**
-   *
-   * @param {Array<Array>} data
-   * @param {Array} labels
+   * @param {Array<Array<*>>} data
+   * @param {Array<*>} labels
    */
   constructor(data, labels) {
     super(data, labels);
@@ -24,7 +23,8 @@ module.exports = class NaiveBayes extends Classifier {
      */
     this.labelValsPS = {};
     for (const variant of this.labelVals) {
-      this.labelValsPS[variant] = this.labels.filter(l => l === variant).length / this.labels.length;
+      this.labelValsPS[variant] = this.labels.filter(
+          l => l === variant).length / this.labels.length;
     }
 
     /** @type Object<Object<Object<Number>>> */
@@ -65,13 +65,13 @@ module.exports = class NaiveBayes extends Classifier {
    * @returns {*} predicted class name
    */
   predict(x) {
-    return this.labelVals
-        .map(variant => [
+    return this.labelVals.map(variant => [
           variant,
           x.map((val, idx) => this.attrPS[variant][idx][val]
               ? this.attrPS[variant][idx][val]
-              : 0)
-          .reduce((a, b) => a * b, 1) * this.labelValsPS[variant]])
-        .reduce((pair1, pair2) => pair1[1] > pair2[1] ? pair1 : pair2)[0];
+              : 0).reduce((a, b) => a * b, 1) * this.labelValsPS[variant]]).
+        reduce((pair1, pair2) => pair1[1] > pair2[1] ? pair1 : pair2)[0];
   }
-};
+}
+
+module.exports = NaiveBayes;

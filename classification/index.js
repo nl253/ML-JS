@@ -1,22 +1,22 @@
 class Classifier {
   /**
-   * @param {Array<Array<*>>} xs
-   * @param {Array<*>} ys
+   * @param {Array<Array<*>>} data
+   * @param {Array<*>} labels
    * @param {Number} r
    */
-  constructor(xs, ys, r = 0.1) {
-    this.testCount = Math.floor(xs.length * r);
-    this.data = xs.slice(0, this.testCount);
-    this.testData = xs.slice(this.testCount);
-    this.labels = ys.slice(0, this.testCount);
-    this.testLabels = ys.slice(this.testCount);
+  constructor(data, labels, r = 0.1) {
+    this.testCount = Math.floor(data.length * r);
+    this.testData = data.slice(0, this.testCount);
+    this.data = data.slice(this.testCount, data.length);
+    this.testLabels = labels.slice(0, this.testCount);
+    this.labels = labels.slice(this.testCount, data.length);
   }
 
   /**
-   * @return {Number} accurracy score in [0, 1]
+   * @return {Number} accuracy score in [0, 1]
    */
   score() {
-    return this.testData.filter((x, idx) => this.predict(x) === this.testLabels[idx]) / this.testLabels.length;
+    return this.testData.filter((x, idx) => this.predict(x) === this.testLabels[idx]) / this.testCount;
   }
 
   /**
@@ -28,8 +28,4 @@ class Classifier {
   }
 }
 
-module.exports = {
-  knn: require('./knn'),
-  naive_bayes: require('./naive_bayes'),
-  Classifier,
-};
+module.exports = {Classifier};

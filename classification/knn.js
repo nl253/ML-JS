@@ -1,7 +1,7 @@
-const {Classifier} = require('.');
+const {Classifier} = require('./index');
 const {minkowskyDist: dist} = require('../utils');
 
-module.exports = class KNN extends Classifier {
+class KNN extends Classifier {
   /**
    * @param {Array<Array<Number>>} data
    * @param {Array<*>} labels
@@ -24,13 +24,9 @@ module.exports = class KNN extends Classifier {
     if (!k) k = this.k;
     if (!p) p = this.p;
 
-    const best = this.data
-      .slice(k)
-      .map((b, idx) => this.labels[idx]);
+    const best = this.data.slice(k).map((b, idx) => this.labels[idx]);
 
-    const bestDist = this.data
-      .slice(k)
-      .map(datum => dist(x, datum, p));
+    const bestDist = this.data.slice(k).map(datum => dist(x, datum, p));
 
     for (let row = k; row < this.data.length; row++) {
       const d = dist(x, this.data[row], p);
@@ -50,12 +46,12 @@ module.exports = class KNN extends Classifier {
       } else attrCounts[b]++;
     }
 
-    return Object
-      .entries(attrCounts)
-      .sort((a, b) => {
-        if (a[1] < b[1]) return 1;
-        else if (a[1] > b[1]) return -1;
-        else return 0;
-      })[0][0];
+    return Object.entries(attrCounts).sort((a, b) => {
+      if (a[1] < b[1]) return 1;
+      else if (a[1] > b[1]) return -1;
+      else return 0;
+    })[0][0];
   }
 };
+
+module.exports = KNN;
