@@ -106,6 +106,15 @@ function mode(xs) {
       : [val1, count1])[0];
 }
 
+/**
+ * @param {!Number} a
+ * @param {!Number} b
+ * @return {!Number} random number
+ */
+function randInRange(a, b) {
+  return a + (b - a) * Math.random();
+}
+
 // /**
 //  * @param {Array<*>} xs
 //  * @return {Array<*>} transpose of xs
@@ -130,6 +139,7 @@ module.exports = {
   stdev,
   variance,
   mode,
+  randInRange,
   minkowskyDist,
   readCSV,
   mean,

@@ -51,25 +51,25 @@ class GeneticAlgo {
    */
   search() {
     let scores = [];
-    const start = Date.now();
+    const startTime = Date.now();
     const popSize = this.candidates.length;
-    const growPopSize = Math.floor(popSize * this.popGrowthFactor);
-    let rounds = this.n;
+    const maxPopSize = Math.floor(popSize * this.popGrowthFactor);
+    let roundsLeft = this.n;
     while (true) {
       // check for timeout
-      if (((Date.now() - start) / 1000) >= this.sec) {
-        console.info(`timeout after ${this.n - rounds} rounds, took ${(Date.now() - start) / 1000}s, quitting`);
+      if (((Date.now() - startTime) / 1000) >= this.sec) {
+        console.info(`timeout after ${this.n - roundsLeft} rounds, took ${(Date.now() - startTime) / 1000}s, quitting`);
         break;
-      // check for rounds
-      } else if (rounds === 0) {
-        console.info(`did ${this.n} rounds, took ${(Date.now() - start) / 1000}s, quitting`);
+        // check for rounds
+      } else if (roundsLeft === 0) {
+        console.info(`did ${this.n} rounds, took ${(Date.now() - startTime) / 1000}s, quitting`);
         break;
         // check for stuck in local minimum
       } else if (scores.length >= this.roundsCheck && scores.slice(0, scores.length - 1).map((s, idx) => Math.abs(s - scores[idx + 1])).reduce((diff1, diff2) => diff1 + diff2, 0) < this.minDiff) {
-        console.info(`no changes for ${this.roundsCheck} rounds, did ${this.n - rounds} rounds, took ${(Date.now() - start) / 1000}s, quitting`);
+        console.info(`no changes for ${this.roundsCheck} rounds, did ${this.n - roundsLeft} rounds, took ${(Date.now() - startTime) / 1000}s, quitting`);
         break;
-      } else rounds--;
-      while (this.candidates.length < growPopSize) {
+      } else roundsLeft--;
+      while (this.candidates.length < maxPopSize) {
         if (Math.random() <= this.mutationP) {
           this.candidates.push(this.mutateF(this.candidates[this.candidates.length - 1]));
         } else {
@@ -79,17 +79,22 @@ class GeneticAlgo {
                   this.candidates[Math.floor(Math.random() * (this.candidates.length - 0.1))]));
         }
       }
+
+      const cache = new Map();
+
       // take most fit
       this.candidates = this.candidates.sort((a, b) => {
         const f1 = this.f(a);
         const f2 = this.f(b);
+        cache.set(a, f1);
+        cache.set(b, f2);
         // reverse sort
         if (f1 > f2) return -1;
         else if (f2 > f1) return 1;
         else return 0;
       }).slice(0, popSize);
       if (scores.length > this.roundsCheck) scores.shift();
-      scores.push(this.candidates.map(c => this.f(c)).reduce((s1, s2) => s1 + s2, 0));
+      scores.push(this.candidates.map(c => cache.get(c)).reduce((s1, s2) => s1 + s2, 0));
     }
     return this.candidates;
   }
