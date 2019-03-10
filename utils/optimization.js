@@ -33,4 +33,38 @@ function* combinations(xs, n) {
   }
 }
 
-module.exports = {newtonsMethod, combinations};
+/**
+ * @param {!Array<*>} xs
+ * @param {!Number} i
+ * @param {!Number} j
+ */
+function swap(xs, i, j) {
+  const save = xs[i];
+  xs[i] = xs[j];
+  xs[j] = save;
+}
+
+/**
+ * @param {Array<*>} xs
+ * @return {Array<*>}
+ */
+function* permutations(xs, n) {
+  if (n  === undefined) n = xs.length;
+  if (n === 1) {
+    yield xs;
+    return;
+  }
+
+  yield * permutations(xs, n - 1);
+
+  for (let i = 0; i < n - 1; i++) {
+    if (n % 2 === 0) {
+      swap(xs, i, n - 1);
+    } else {
+      swap(xs, 0, n - 1);
+    }
+    yield * permutations(xs, n - 1);
+  }
+}
+
+module.exports = {newtonsMethod, combinations, permutations};
