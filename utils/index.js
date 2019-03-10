@@ -5,8 +5,7 @@
  * @returns {!Number}
  */
 function minkowskyDist(xs, ys, p = 1) {
-  return xs.map((x, idx) => (x - ys[idx]) ** p).reduce((x, y) => x + y) **
-      (1 / p);
+  return xs.map((x, idx) => (x - ys[idx]) ** p).reduce((x, y) => x + y) ** (1 / p);
 }
 
 /**
