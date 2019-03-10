@@ -1,4 +1,4 @@
-const {combinations} = require('./utils/optimization');
+const { combinations } = require('./utils/optimization');
 
 class AssocRules {
   /**
@@ -13,7 +13,7 @@ class AssocRules {
   }
 
   /**
-   * @return {Array<{attrs: Array<Number>, attr: Number, conf: Number, supp: Number}>} rules
+   * @returns {Array<{attrs: Array<Number>, attr: number, conf: number, supp: number}>} rules
    */
   run() {
     const rules = [];
@@ -28,7 +28,7 @@ class AssocRules {
           const otherAttrs = attrComb.filter(a => a !== attr);
           const conf = this.data.filter(row => row[attr] && otherAttrs.map(a => !!row[a]).reduce((b1, b2) => b1 && b2, true)).length / this.data.filter(row => !!row[attr]).length;
           if (conf >= this.minConf) {
-            rules.push({attrs: otherAttrs, attr, supp, conf})
+            rules.push({ attrs: otherAttrs, attr, supp, conf });
           }
         }
       }
