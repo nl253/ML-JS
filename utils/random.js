@@ -1,10 +1,12 @@
 /**
  * @param {!Number} a min value
- * @param {!Number} b max value
+ * @param {!Number} [b] max value
  * @return {!Number} random number
  */
 function randInRange(a, b) {
-  return a + (b - a) * Math.random();
+  return b === undefined
+    ? randInRange(0, a)
+    : a + (b - a) * Math.random();
 }
 
 /**
