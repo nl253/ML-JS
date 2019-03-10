@@ -1,4 +1,4 @@
-const {randInRange} = require('../utils');
+const {randInRange} = require('../utils/random');
 
 class PSO {
 
