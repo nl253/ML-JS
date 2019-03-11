@@ -3,23 +3,20 @@
   "bugs": {
     "url": "https://github.com/nl253/ML-JS/issues"
   },
-  "dependencies": {},
+  "dependencies": {
+    "tinyqueue": "^2.0.0"
+  },
   "description": "Machine learning library",
   "engines": {
     "node": ">=10"
   },
-  "files": [
-    "example.js",
-    "spider.js",
-    "exporting/sqlite.js"
-  ],
   "homepage": "https://github.com/nl253/ML-JS/blob/master/README.md",
   "keywords": [],
   "license": "MIT",
   "main": "index.js",
   "name": "ml-js",
   "private": false,
-  "readme": "",
+  "readme": "https://github.com/nl253/ML-JS/blob/master/README.md",
   "repository": {
     "type": "git",
     "url": "https://github.com/nl253/ML-JS"

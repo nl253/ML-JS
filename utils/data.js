@@ -1,7 +1,7 @@
-const {readFileSync} = require('fs');
+const { readFileSync } = require('fs');
 
 /**
- * @param {!String} filePath
+ * @param {!string} filePath
  * @returns {JSON}
  */
 function readJSON(filePath) {
@@ -10,13 +10,18 @@ function readJSON(filePath) {
 
 /**
  * @param {!String} filePath
- * @returns {string[][]}
+ * @returns {Array<Array<String>>} table
  */
-function readCSV(filePath) {
-  return readFileSync(filePath).
-      toString('utf-8').
-      split(/\r\n|\n\r?/).
-      map(x => x.split(','));
+function readCSV(filePath, hasHeader = false) {
+  let rows = readFileSync(filePath)
+    .toString('utf-8')
+    .split(/\r\n|\n\r?/)
+    .map(x => x.split(','));
+  if (rows[rows.length - 1].length === 1 && rows[rows.length - 1][0] === '') {
+    rows = rows.slice(0, rows.length - 1);
+  }
+  if (hasHeader) rows = rows.slice(1, rows.length);
+  return rows;
 }
 
-module.exports = {readCSV, readJSON};
+module.exports = { readCSV, readJSON };
