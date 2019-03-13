@@ -5,11 +5,15 @@ class NaiveBayes extends Classifier {
   /**
    * @param {Array<Array<*>>} data
    * @param {Array<*>} labels
+   * @param {!Number} [r]
    */
-  constructor(data, labels) {
-    super(data, labels);
+  constructor(data, labels, r = 0.1) {
+    super(data, labels, r);
   }
 
+  /**
+   * Learn the model.
+   */
   fit() {
     /**
      * Counts of unique label values for the predicted attribute.

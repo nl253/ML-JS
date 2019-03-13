@@ -85,6 +85,10 @@ class Classifier {
   predict(x) {
     return console.warn('Model.predict(x) needs to be overridden');
   }
+
+  toString() {
+    return `${this.constructor.name} { #features = ${this.featureCount}, #uniqueLables = ${this.uniqueLabels.length}, #dataTrain = ${this.dataTrain.length}, #dataTest = ${this.dataTest.length}, r = ${this.r} }`;
+  }
 }
 
 module.exports = {Classifier};

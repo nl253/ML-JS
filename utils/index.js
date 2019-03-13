@@ -140,11 +140,25 @@ function entropy(ps) {
   return -(ps.map(p => p * Math.log2(p)).reduce((a, b) => a + b));
 }
 
+/**
+ * Shuffles array in place.
+ *
+ * @param {!Array} a items An array containing the items.
+ */
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 module.exports = {
   euclideanDist: (xs, ys) => minkowskyDist(xs, ys, 2),
   manhattanDist: (xs, ys) => minkowskyDist(xs, ys, 1),
   hashingTrick,
   bag,
+  shuffle,
   transpose,
   argMax,
   information,

@@ -1,11 +1,35 @@
 const {Classifier} = require('.');
 const argMax = require('../utils').argMax;
 const GA = require('../search/genetic');
+const {randBitStr} = require('../utils/random');
+
+/**
+ * @param {{label: *, confidence: !Number, support: !Number, count: !Number}|{attr: *, op: !String, threshold: *, t: Object, f: Object}} node
+ * @return {Array<Array<{label: *, confidence: !Number, support: !Number, count: !Number}|{attr: *, op: !String, threshold: *}>>} rules
+ * @private
+ */
+function collectRules(node) {
+  if (node === null) return [];
+  else if (node.label) {
+    const {label,confidence, support, count} = node;
+    return [[{label, confidence, support, count}]];
+  } else {
+    const {attr, threshold, t, f, op} = node;
+    const rules = [];
+    for (const subTree of [t, f]) {
+      for (const r of collectRules(subTree)) {
+        rules.push([{attr, op, threshold}].concat(r));
+      }
+    }
+    return rules;
+  }
+}
 
 /**
  * @param {{threshold: Number, attr: Number, t: Object, f: Object, op: String, support: Number, confidence: Number, label: *}} node
  * @param {*} x
  * @return {*}
+ * @private
  */
 function walkPredict(node, x) {
   if (node === null) return null;
@@ -21,30 +45,25 @@ function walkPredict(node, x) {
 }
 
 /**
+ * @param {!Number} popSize
  * @param {!Number} bitsFeature
  * @param {!Number} bitsVal
- * @return {!String} bit string
+ * @return {!Array<!String>} population
+ * @private
  */
-function makeCandidate(bitsFeature, bitsVal) {
-  return Array(bitsFeature).
-      fill(0).
-      map(_ => Math.round(Math.random()).toString()).
-      join('') +
-      (Math.random() >= 0.5 ? '0' : '1') +
-      Array(bitsVal).
-          fill(0).
-          map(_ => Math.round(Math.random()).toString()).
-          join('');
+function makePopulation(popSize, bitsFeature, bitsVal) {
+  return Array(popSize).fill(0).map(_ =>
+      randBitStr(bitsFeature) + (Math.random() >= 0.5 ? '0' : '1') + randBitStr(bitsVal));
 }
-
 
 /**
  * @param {!Number} featureIdx
- * @param {!String} op
+ * @param {!String} op "gte" or "lt"
  * @param {!Number} valIdx
  * @param {!Array<{val: *, label: *}>} candidates
  * @param {!Number} [minLeafItems]
  * @return {!Number} fitness score
+ * @private
  */
 function fitnessF({featureIdx, op, valIdx}, candidates, minLeafItems = 6) {
   const t = [];
@@ -65,6 +84,7 @@ function fitnessF({featureIdx, op, valIdx}, candidates, minLeafItems = 6) {
  * @param {!Number} candidateCount
  * @param {!Number} featureCount
  * @return {!{op: String, featureIdx: Number, valIdx: Number}} decoded candidate
+ * @private
  */
 function decode(bits, bitsFeature, bitsVal, candidateCount, featureCount) {
   return {
@@ -86,6 +106,16 @@ function purity(cs) {
   return Object.values(index).reduce((c1, c2) => Math.max(c1, c2)) / cs.length;
 }
 
+/**
+ * @param {*} label
+ * @param {Array<*>} candidates
+ * @return {!Number} confidence in prediction in [0, 1]
+ * @private
+ */
+function confidence(label, candidates) {
+  return candidates.filter(c => c.label === label).length / candidates.length;
+}
+
 class DecisionTree extends Classifier {
 
   /**
@@ -95,12 +125,21 @@ class DecisionTree extends Classifier {
    * @param {!Number} [minLeafItems]
    * @param {!Number} [minPurity]
    * @param {!Number} [maxDepth]
+   * @param popSize
+   * @param maxWaitSec
+   * @param popGrowthFactor
+   * @param mutationP
+   * @param maxRounds
    */
-  constructor(data, labels, r = 0.1, minLeafItems = 5, minPurity = 0.8, maxDepth = 15) {
+  constructor(data, labels, r = 0.1, minLeafItems = 5, minPurity = 0.8, maxDepth = 15, popSize = 100, maxWaitSec = 5, popGrowthFactor = 2, mutationP = 0.8, maxRounds = 500) {
     super(data, labels, r);
     this.maxDepth = maxDepth;
+    this.popSize = popSize;
+    this.popGrowthFactor = popGrowthFactor;
+    this.maxWaitSec = maxWaitSec;
+    this.maxRounds = maxRounds;
     this.minLeafItems = minLeafItems;
-    this.minPurity = 0.8;
+    this.minPurity = minPurity;
   }
 
   fit() {
@@ -109,14 +148,23 @@ class DecisionTree extends Classifier {
         this.maxDepth);
   }
 
+  /**
+   * @param {*} label
+   * @return {!Number} support for prediction in [0, 1]
+   * @private
+   */
   _getSupport(label) {
     return this.dataTrain.filter((_, idx) => this.labelsTrain[idx] === label).length / this.dataTrain.length;
   }
 
-  _getConf(label, candidates) {
-    return candidates.filter(c => c.label === label).length / candidates.length;
-  }
-
+  /**
+   * Helper function to construct the tree.  Expects each candidate to be paired with a label.
+   *
+   * @param {Array<{label: *, val: *}>} candidates
+   * @param {!Number} depthLimit
+   * @return {{attr: *, op: !String, threshold: *, t: Object, f: Object}|{label: *, confidence: !Number, support: !Number, count: !Number}} tree
+   * @private
+   */
   _buildTree(candidates, depthLimit) {
     if (depthLimit <= 0 || candidates.length < this.minLeafItems) {
       const label = argMax(
@@ -126,7 +174,7 @@ class DecisionTree extends Classifier {
       else console.log(`min children reached (#cands = ${candidates.length} | minLeafItems = ${this.minLeafItems})`);
       return {
         label,
-        confidence: this._getConf(label, candidates),
+        confidence: confidence(label, candidates),
         support: this._getSupport(label),
         count: candidates.length,
       };
@@ -148,9 +196,9 @@ class DecisionTree extends Classifier {
     const bitsVal = Math.ceil(Math.log2(candidates.length));
 
     const ga = new GA(
-        Array(100).fill(0).map(_ => makeCandidate(bitsFeature, bitsVal)),
+        makePopulation(this.popSize, bitsFeature, bitsVal),
         bits => fitnessF(decode(bits, bitsFeature, bitsVal, candidates.length, this.featureCount), candidates, this.minLeafItems),
-        300, 5, 1, 3.5, 3, 0.5, 12);
+        this.maxRounds, this.maxWaitSec, this.mutationP, this.popGrowthFactor, 3, 0.5, Math.floor(this.popSize * 0.1));
 
     const {featureIdx, op, valIdx} = decode(ga.search()[0], bitsFeature, bitsVal, candidates.length, this.featureCount);
 
@@ -179,6 +227,39 @@ class DecisionTree extends Classifier {
     return walkPredict(this.tree, x);
   }
 
+  /**
+   * Programmatic interface to rules.
+   *
+   * @return {Array<Object>} rules
+   */
+  get rules() {
+    return collectRules(this.tree);
+  }
+
+  /**
+   * Rules in plain english.
+   *
+   * @return {Array<String>} rules
+   */
+  get rulesEng() {
+    return this.rules.map(ruleArr => {
+      let s = 'IF ';
+      for (const rule of ruleArr) {
+        if (rule.label) {
+          s += `THEN ${rule.label} (conf = ${rule.confidence.toPrecision(2)} from ${rule.count}/${this.dataTrain.length} examples)`;
+        } else if (s === 'IF ') {
+          s += `attr nr. ${rule.attr} ${rule.op === 'lt' ? '<' : '>='} ${rule.threshold} `;
+        } else {
+          s += `AND attr nr. ${rule.attr} ${rule.op === 'lt' ? '<' : '>='} ${rule.threshold} `;
+        }
+      }
+      return s;
+    });
+  }
+
+  toString() {
+    return `${this.constructor.name} { leafItems = ${this.minLeafItems}, minPurity = ${this.minPurity}, maxDepth = ${this.maxDepth} }`;
+  }
 }
 
 module.exports = DecisionTree;
