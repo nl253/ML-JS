@@ -1,7 +1,24 @@
 const {Classifier} = require('.');
 const argMax = require('../utils').argMax;
 const GA = require('../search/genetic');
-const {logSigmoid} = require('../utils/activation');
+
+/**
+ * @param {{threshold: Number, attr: Number, t: Object, f: Object, op: String, confidence: Number, label: *}} node
+ * @param {*} x
+ * @return {*}
+ */
+function walkPredict(node, x) {
+  console.log(node);
+  if (node === null) return null;
+  else if (node.confidence) {
+    const {label, confidence} = node;
+    console.log(`predicting ${label} with conf = ${confidence}`);
+    return label;
+  }
+  const {attr, t, f, op, threshold} = node;
+  if ((op === 'lt' ? (a, b) => a < b : (a, b) => a >= b)(x[attr], threshold)) return walkPredict(t, x);
+  else return walkPredict(f, x);
+}
 
 /**
  * @param {!Number} bitsFeature
@@ -148,7 +165,10 @@ class DecisionTree extends Classifier {
   /**
    * @param {Array<*>} x
    */
-  predict(x) {}
+  predict(x) {
+    return walkPredict(this.tree, x);
+  }
+
 }
 
 module.exports = DecisionTree;
