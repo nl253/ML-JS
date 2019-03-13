@@ -74,7 +74,30 @@ function fitnessF({featureIdx, op, valIdx}, candidates, minLeafItems = 6) {
     if (opF(c.val[featureIdx], val)) t.push(c);
     else f.push(c);
   }
-  return Math.max(-1, -(Math.abs((candidates.length / 2) - t.length)) / (candidates.length / 2)) + (t.length >= minLeafItems && f.length > minLeafItems ? Math.max(purity(t) * 1.5, purity(f) * 1.5) : -1);
+
+  let fitness = 0;
+
+  // FACTOR #1
+  // penalise if the split between f and t IS NOT equal
+  // thus the cost is the offset from the difference from candidates.length / 2
+  const half = candidates.length / 2;
+  const offsetFromHalf = Math.abs(t.length - half);
+  // log will flatten it because this number can grow a lot
+  if (offsetFromHalf === 0) fitness += 1;
+  else fitness -= offsetFromHalf / half;
+
+  // FACTOR #2
+  // penalise if too few items in each bin
+  // focus on the smaller bin
+  const smBinSize = Math.min(t.length, f.length);
+  fitness += (smBinSize - minLeafItems) / minLeafItems;
+
+  // FACTOR #3
+  // penalise if *one* of the bins is not highly homogeneous (pure)
+  // this is the most important factor
+  fitness -= (1 - Math.max(purity(t), purity(f))) * 2;
+
+  return fitness;
 }
 
 /**
@@ -103,7 +126,7 @@ function purity(cs) {
   for (let c = 0; c < cs.length; c++) {
     index[cs[c].label] = (index[cs[c].label] || 0) + 1;
   }
-  return Object.values(index).reduce((c1, c2) => Math.max(c1, c2)) / cs.length;
+  return Object.values(index).reduce((c1, c2) => Math.max(c1, c2), 0) / (cs.length > 0 ? cs.length : 1);
 }
 
 /**
