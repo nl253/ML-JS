@@ -7,7 +7,7 @@ const {transpose: t} = require("../utils");
 const _data = t(data);
 const xs = t(_data.slice(0, _data.length - 1).map(col => col.map(parseFloat)));
 const ys = _data[_data.length - 1];
-model = new DT(xs, ys, 0.1, 15, 0.7, 10);
+model = new DT(xs, ys, 0.125, 7, 0.749, _data.length, 100, 5, 3.5, 0.01, 1000);
 model.fit();
 console.log(inspect(model.tree, {depth: null}));
 console.log(inspect(model, {depth: 0}));

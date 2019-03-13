@@ -90,7 +90,7 @@ function fitnessF({featureIdx, op, valIdx}, candidates, minLeafItems = 6) {
   // penalise if too few items in each bin
   // focus on the smaller bin
   const smBinSize = Math.min(t.length, f.length);
-  fitness += (smBinSize - minLeafItems) / minLeafItems;
+  fitness += ((smBinSize - minLeafItems) / minLeafItems) * 2;
 
   // FACTOR #3
   // penalise if *one* of the bins is not highly homogeneous (pure)
@@ -122,11 +122,12 @@ function decode(bits, bitsFeature, bitsVal, candidateCount, featureCount) {
  * @return {!Number} purity ratio [0, 1]
  */
 function purity(cs) {
+  if (cs.length === 0) return 0;
   const index = {};
   for (let c = 0; c < cs.length; c++) {
     index[cs[c].label] = (index[cs[c].label] || 0) + 1;
   }
-  return Object.values(index).reduce((c1, c2) => Math.max(c1, c2), 0) / (cs.length > 0 ? cs.length : 1);
+  return Object.values(index).reduce((c1, c2) => Math.max(c1, c2)) / cs.length;
 }
 
 /**
@@ -154,9 +155,9 @@ class DecisionTree extends Classifier {
    * @param mutationP
    * @param maxRounds
    */
-  constructor(data, labels, r = 0.1, minLeafItems = 5, minPurity = 0.8, maxDepth = 15, popSize = 100, maxWaitSec = 5, popGrowthFactor = 2, mutationP = 0.8, maxRounds = 500) {
+  constructor(data, labels, r = 0.125, minLeafItems = 7, minPurity = 0.749, maxDepth = null, popSize = 100, maxWaitSec = 10, popGrowthFactor = 3.5, mutationP = 0.01, maxRounds = 1000) {
     super(data, labels, r);
-    this.maxDepth = maxDepth;
+    this.maxDepth = maxDepth === null ? this.featureCount : maxDepth;
     this.popSize = popSize;
     this.popGrowthFactor = popGrowthFactor;
     this.maxWaitSec = maxWaitSec;
@@ -221,7 +222,7 @@ class DecisionTree extends Classifier {
     const ga = new GA(
         makePopulation(this.popSize, bitsFeature, bitsVal),
         bits => fitnessF(decode(bits, bitsFeature, bitsVal, candidates.length, this.featureCount), candidates, this.minLeafItems),
-        this.maxRounds, this.maxWaitSec, this.mutationP, this.popGrowthFactor, 3, 0.5, Math.floor(this.popSize * 0.1));
+        this.maxRounds, this.maxWaitSec, this.mutationP, this.popGrowthFactor, 5, 0.5, Math.floor(this.popSize * 0.1));
 
     const {featureIdx, op, valIdx} = decode(ga.search()[0], bitsFeature, bitsVal, candidates.length, this.featureCount);
 
