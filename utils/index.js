@@ -1,11 +1,29 @@
 /**
  * @param {!Array<!Number>} xs
  * @param {!Array<!Number>} ys
- * @param {number} [p]
- * @returns {!number}
+ * @param {!Number} [p]
+ * @returns {!Number}
  */
 function minkowskyDist(xs, ys, p = 1) {
   return xs.map((x, idx) => (x - ys[idx]) ** p).reduce((x, y) => x + y) ** (1 / p);
+}
+
+/**
+ * @param {!Array<!Number>} xs
+ * @param {!Array<!Number>} ys
+ * @returns {!Number}
+ */
+function chebyshevDist(xs, ys) {
+  let greatestDim = 0;
+  let greatestDist = Math.abs(xs[0] - ys[0]);
+  for (let i = 1; i < xs.length; i++) {
+    const d = Math.abs(xs[i] - ys[i]);
+    if (d > greatestDist) {
+      greatestDist = d;
+      greatestDim = i;
+    }
+  }
+  return greatestDist;
 }
 
 /**
@@ -59,6 +77,7 @@ function transpose(xs) {
 /**
  * @param {!Array<*>} args
  * @param {!Function} f
+ * @returns {Number} arg
  */
 function argMax(args, f) {
   let best = args[0];
@@ -76,6 +95,7 @@ function argMax(args, f) {
 /**
  * @param {!Array<*>} args
  * @param {!Function} f
+ * @returns {Number} arg
  */
 function argMin(args, f) {
   let best = args[0];
@@ -90,26 +110,34 @@ function argMin(args, f) {
   return best;
 }
 
-function vecSum(xs, ys) {
-  return xs.map((x, idx) => x + ys[idx]);
+/**
+ * @param {!Number} p probability in [0, 1]
+ * @return {Number|Infinity}
+ */
+function information(p = 0.5) {
+  return Math.log2(1/p);
 }
 
-function vecDiff(xs, ys) {
-  return xs.map((x, idx) => x - ys[idx]);
-}
-
-function vecProd(xs, ys) {
-  return xs.map((x, idx) => x * ys[idx]);
-}
-
-function vecQuot(xs, ys) {
-  return xs.map((x, idx) => x / ys[idx]);
-}
-
-function range(a, b, step = 1) {
+/**
+ *
+ * @param {!Number} [a]
+ * @param {!Number} [b]
+ * @param {!Number} [step]
+ * @returns {!Array<Number>} range
+ */
+function range(a = 0, b, step = 1) {
+  if (b === undefined) return range(0, a, step);
   const xs = [];
   for (let i = a; i < b; i += step) xs.push(i);
   return xs;
+}
+
+/**
+ * @param {Array<Number>} ps
+ * @returns {!Number} entropy
+ */
+function entropy(ps) {
+  return -(ps.map(p => p * Math.log2(p)).reduce((a, b) => a + b));
 }
 
 module.exports = {
@@ -119,6 +147,9 @@ module.exports = {
   bag,
   transpose,
   argMax,
+  information,
   argMin,
+  chebyshevDist,
+  entropy,
   minkowskyDist,
 };

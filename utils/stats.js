@@ -1,4 +1,4 @@
-const {bag} = require('.');
+const { bag } = require('.');
 
 function mean(nums) {
   return nums.reduce((x1, x2) => x1 + x2) / nums.length;
@@ -9,17 +9,19 @@ function mean(nums) {
  * @param {!Array<!Number>} ys
  * @return {Number}
  */
-function covariance(xs, ys) {
-  const muXS = mean(xs);
-  const muYS = mean(ys);
-  const left = xs.map(x => x - muXS);
-  const right = ys.map(y => y - muYS);
-  return mean(left.map((l, idx) => l * right[idx]).reduce((a, b) => a + b));
-}
+/*
+ * function covariance(xs, ys) {
+ * const muXS = mean(xs);
+ * const muYS = mean(ys);
+ * const left = xs.map(x => x - muXS);
+ * const right = ys.map(y => y - muYS);
+ * return mean(left.map((l, idx) => l * right[idx]).reduce((a, b) => a + b));
+ * }
+ */
 
 /**
  * @param {!Array<!Number>} nums non-empty array of nums
- * @return {Number}
+ * @returns {number}
  */
 function variance(nums) {
   const mu = mean(nums);
@@ -28,7 +30,7 @@ function variance(nums) {
 
 /**
  * @param {!Array<!Number>} nums non-empty array of nums
- * @return {Number}
+ * @returns {number}
  */
 function stdev(nums) {
   return Math.sqrt(variance(nums));
@@ -36,30 +38,29 @@ function stdev(nums) {
 
 /**
  * @param {!Array<Number>} xs
- * @return {{min: Number, max: Number}}
+ * @returns {{min: number, max: number}}
  */
 function range(xs) {
-  return xs.reduce((x1, x2) => Math.max(x1, x2)) -
-      xs.reduce((x1, x2) => Math.min(x1, x2));
+  return xs.reduce((x1, x2) => Math.max(x1, x2))
+      - xs.reduce((x1, x2) => Math.min(x1, x2));
 }
 
 /**
  * @param {!Array<*>} xs
- * @return {*} mode
+ * @returns {*} mode
  */
 function mode(xs) {
   return Object
-  .entries(bag(xs))
-  .map(([s, count]) => [parseInt(s), count])
-  .reduce(([val1, count1], [val2, count2]) =>
-      count2 > count1
-          ? [val2, count2]
-          : [val1, count1])[0];
+    .entries(bag(xs))
+    .map(([s, count]) => [parseInt(s), count])
+    .reduce(([val1, count1], [val2, count2]) => (count2 > count1
+      ? [val2, count2]
+      : [val1, count1]))[0];
 }
 
 /**
  * @param {!Array<!Number>} xs
- * @return {!Number} mean abs deviation
+ * @returns {!number} mean abs deviation
  */
 function mad(xs) {
   const mu = mean(xs);
@@ -68,7 +69,7 @@ function mad(xs) {
 
 /**
  * @param {!Array<!Number>} xs
- * @return {!Number} median
+ * @returns {!number} median
  */
 function median(xs) {
   return nQuart(xs, 1, 2);
@@ -78,7 +79,7 @@ function median(xs) {
  * @param {!Array<!Number>} xs
  * @param {!Number} [n]
  * @param {!Number} [m]
- * @return {!Number} nth quartile
+ * @returns {!number} nth quartile
  */
 function nQuart(xs, n = 2, m = 4) {
   const ys = [].concat(xs).sort();
@@ -89,4 +90,4 @@ function nQuart(xs, n = 2, m = 4) {
   return (v1 + v2) / 2;
 }
 
-module.exports = {mad, mode, range, mean, variance, stdev, nQuart, median};
+module.exports = { mad, mode, range, mean, variance, stdev, nQuart, median };

@@ -8,21 +8,16 @@ class NaiveBayes extends Classifier {
    */
   constructor(data, labels) {
     super(data, labels);
+  }
 
-    /**
-     * Unique label values for the predicted attribute.
-     *
-     * @type {Array}
-     */
-    this.labelVals = Array.from(new Set(labels));
-
+  fit() {
     /**
      * Counts of unique label values for the predicted attribute.
      *
      * @type Object<Number>
      */
     this.labelValsPS = {};
-    for (const variant of this.labelVals) {
+    for (const variant of this.uniqueLabels) {
       this.labelValsPS[variant] = this.labels.filter(
           l => l === variant).length / this.labels.length;
     }
@@ -31,7 +26,7 @@ class NaiveBayes extends Classifier {
     this.attrCounts = {};
     /** @type Object<Object<Object<Number>>> */
     this.attrPS = {};
-    for (const variant of this.labelVals) {
+    for (const variant of this.uniqueLabels) {
       this.attrCounts[variant] = {};
       this.attrPS[variant] = {};
       for (let col = 0; col < this.data[0].length; col++) {
@@ -48,7 +43,7 @@ class NaiveBayes extends Classifier {
       }
     }
 
-    for (const variant of this.labelVals) {
+    for (const variant of this.uniqueLabels) {
       for (let col = 0; col < this.data[0].length; col++) {
         for (const val of Object.keys(this.attrCounts[variant][col])) {
           this.attrPS[variant][col][val] =
@@ -65,7 +60,7 @@ class NaiveBayes extends Classifier {
    * @returns {*} predicted class name
    */
   predict(x) {
-    return this.labelVals.map(variant => [
+    return this.uniqueLabels.map(variant => [
           variant,
           x.map((val, idx) => this.attrPS[variant][idx][val]
               ? this.attrPS[variant][idx][val]
