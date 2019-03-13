@@ -3,16 +3,16 @@ const argMax = require('../utils').argMax;
 const GA = require('../search/genetic');
 
 /**
- * @param {{threshold: Number, attr: Number, t: Object, f: Object, op: String, confidence: Number, label: *}} node
+ * @param {{threshold: Number, attr: Number, t: Object, f: Object, op: String, support: Number, confidence: Number, label: *}} node
  * @param {*} x
  * @return {*}
  */
 function walkPredict(node, x) {
-  console.log(node);
   if (node === null) return null;
   else if (node.confidence) {
-    const {label, confidence} = node;
-    console.log(`predicting ${label} with conf = ${confidence}`);
+    const {label, confidence, support} = node;
+    console.log(`Conf(${label}) = ${confidence}`);
+    console.log(`Supp(${label}) = ${support}`);
     return label;
   }
   const {attr, t, f, op, threshold} = node;
@@ -46,7 +46,7 @@ function makeCandidate(bitsFeature, bitsVal) {
  * @param {!Number} [minLeafItems]
  * @return {!Number} fitness score
  */
-function fitnessF({featureIdx, op, valIdx}, candidates, minLeafItems = 5) {
+function fitnessF({featureIdx, op, valIdx}, candidates, minLeafItems = 6) {
   const t = [];
   const f = [];
   const opF = op === 'gte' ? (a, b) => a >= b : (a, b) => a < b;
@@ -96,8 +96,7 @@ class DecisionTree extends Classifier {
    * @param {!Number} [minPurity]
    * @param {!Number} [maxDepth]
    */
-  constructor(
-      data, labels, r = 0.1, minLeafItems = 5, minPurity = 0.8, maxDepth = 15) {
+  constructor(data, labels, r = 0.1, minLeafItems = 5, minPurity = 0.8, maxDepth = 15) {
     super(data, labels, r);
     this.maxDepth = maxDepth;
     this.minLeafItems = minLeafItems;
@@ -110,25 +109,36 @@ class DecisionTree extends Classifier {
         this.maxDepth);
   }
 
+  _getSupport(label) {
+    return this.dataTrain.filter((_, idx) => this.labelsTrain[idx] === label).length / this.dataTrain.length;
+  }
+
+  _getConf(label, candidates) {
+    return candidates.filter(c => c.label === label).length / candidates.length;
+  }
+
   _buildTree(candidates, depthLimit) {
-    if (candidates.length === 0) return null;
-    else if (depthLimit <= 0 || candidates.length < this.minLeafItems) {
+    if (depthLimit <= 0 || candidates.length < this.minLeafItems) {
       const label = argMax(
           this.uniqueLabels,
           l => candidates.filter(c => c.label === l).length);
-      console.log(`depth limit on label ${label} or min children (${candidates.length}/${this.minLeafItems})`);
+      if (depthLimit <= 0) console.log(`depth limit on label ${label}`);
+      else console.log(`min children reached (#cands = ${candidates.length} | minLeafItems = ${this.minLeafItems})`);
       return {
         label,
-        confidence: candidates.filter(c => c.label === label).length / candidates.length,
+        confidence: this._getConf(label, candidates),
+        support: this._getSupport(label),
         count: candidates.length,
       };
     } else {
       const purityScore = purity(candidates);
       if (purityScore >= this.minPurity) {
         console.log(`pure on #candidates = ${candidates.length}`);
+        const {label} = candidates[0];
         return {
-          label: candidates[0].label,
+          label,
           confidence: purityScore,
+          support: this._getSupport(label),
           count: candidates.length,
         };
       }
@@ -140,7 +150,7 @@ class DecisionTree extends Classifier {
     const ga = new GA(
         Array(100).fill(0).map(_ => makeCandidate(bitsFeature, bitsVal)),
         bits => fitnessF(decode(bits, bitsFeature, bitsVal, candidates.length, this.featureCount), candidates, this.minLeafItems),
-        200, 3, 1, 3.5, 7);
+        300, 5, 1, 3.5, 3, 0.5, 12);
 
     const {featureIdx, op, valIdx} = decode(ga.search()[0], bitsFeature, bitsVal, candidates.length, this.featureCount);
 

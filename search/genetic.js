@@ -33,7 +33,7 @@ class GeneticAlgo {
    * @param {!Number} [roundsCheck] number of rounds to check if there was a change in fitness in the whole population
    * @param {!Number} [minDiff] minimum combined difference in fitness between roundsCheck last populations
    * @param {!Number} [priorityRatio] what ratio of candidates to prioritise
-   * @param {!Number} [priorityP] propbability of prioritising top candidates for selection for operators
+   * @param {!Number} [priorityP] probability of prioritising top candidates for selection for operators
    * @param {!Function} [mutateF] mutation function
    * @param {!Function} [crossOverF] cross-over function
    */
