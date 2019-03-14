@@ -153,10 +153,43 @@ function shuffle(a) {
   return a;
 }
 
+/**
+ * @param {!Array<*>} preds
+ * @return {*} prediction
+ */
+function majorityVote(preds) {
+  const index = {};
+  for (let p = 0; p < preds.length; p++) {
+    index[preds[p]] = (index[preds[p]] || 0) + 1;
+  }
+  return argMax(Object.keys(index), label => index[label]);
+}
+
+/**
+ * @param {!Array<!Number>} data
+ * @param {!Array<*>} [labels]
+ * @param {!Array<!Number>} [nums]
+ * @param {!Boolean} [doSort]
+ */
+function categorize(data = [], labels = ['low', 'medium', 'high'], nums = [.3, .6, 1], doSort = false) {
+  if (doSort) nums = nums.sort();
+  const result = [];
+  for (let row = 0; row < data.length; row++) {
+    for (let n = 0; n < nums.length; n++) {
+      if (data[row] < nums[n]) {
+        result.push(labels[n]);
+        break;
+      }
+    }
+  }
+  return result;
+}
+
 module.exports = {
   euclideanDist: (xs, ys) => minkowskyDist(xs, ys, 2),
   manhattanDist: (xs, ys) => minkowskyDist(xs, ys, 1),
   hashingTrick,
+  majorityVote,
   bag,
   shuffle,
   transpose,
@@ -165,5 +198,6 @@ module.exports = {
   argMin,
   chebyshevDist,
   entropy,
+  categorize,
   minkowskyDist,
 };

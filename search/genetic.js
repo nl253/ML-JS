@@ -1,4 +1,5 @@
 const { randInRange } = require('../utils/random');
+const log = require('../utils/log');
 
 /**
  * @param {string} xs
@@ -37,7 +38,7 @@ class GeneticAlgo {
    * @param {!Function} [mutateF] mutation function
    * @param {!Function} [crossOverF] cross-over function
    */
-  constructor(candidates, f, n = 100000, sec = 30, mutationP = 0.05, popGrowthFactor = 2, roundsCheck = 5, minDiff = 0.5, priorityRatio = 10, priorityP = 0.75, mutateF = null, crossOverF = null) {
+  constructor(candidates, f, n = 10000, sec = 30, mutationP = 0.15, popGrowthFactor = 2, roundsCheck = 5, minDiff = 0.5, priorityRatio = 10, priorityP = 0.15, mutateF = null, crossOverF = null) {
     this.f = f;
     this.minDiff = minDiff;
     this.priorityP = priorityP;
@@ -75,15 +76,15 @@ class GeneticAlgo {
     while (true) {
       // check for timeout
       if (elapsedSec() >= this.sec) {
-        console.info(`timeout after ${roundsDone()} rounds, took ${elapsedSec()}s, quitting`);
+        log.info(`timeout (${elapsedSec()}s), did [${roundsDone()}/${this.n}] rounds `);
         break;
         // check for rounds
       } else if (roundsLeft === 0) {
-        console.info(`did ${this.n} rounds, took ${elapsedSec()}s, quitting`);
+        log.info(`did [${this.n}/${this.n}] rounds, took ${elapsedSec()}s`);
         break;
         // check for stuck in local minimum
       } else if (scores.length >= this.roundsCheck && scores.slice(0, scores.length - 1).map((s, idx) => Math.abs(s - scores[idx + 1])).reduce((diff1, diff2) => diff1 + diff2, 0) < this.minDiff) {
-        console.info(`no changes for ${this.roundsCheck} rounds, did ${roundsDone()} rounds, took ${elapsedSec()}s, quitting`);
+        log.info(`stuck after ${elapsedSec()}s, [${roundsDone()}/${this.n}] rounds`);
         break;
       } else roundsLeft--;
 
@@ -103,10 +104,7 @@ class GeneticAlgo {
         const f2 = this.f(b);
         cache[a] = f1;
         cache[b] = f2;
-        // reverse sort
-        if (f1 > f2) return -1;
-        else if (f2 > f1) return 1;
-        else return 0;
+        return f2.toLocaleString().localeCompare(f1.toLocaleString());
       }).slice(0, popSize);
       if (scores.length > this.roundsCheck) scores.shift();
       scores.push(

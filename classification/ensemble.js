@@ -1,18 +1,6 @@
-const argMax = require('../utils').argMax;
 const {mean} = require('../utils/stats');
-const {shuffle} = require('../utils');
-
-/**
- * @param {!Array<*>} preds
- * @return {*} prediction
- */
-function majorityVote(preds) {
-  const index = {};
-  for (let p = 0; p < preds.length; p++) {
-    index[preds[p]] = (index[preds[p]] || 0) + 1;
-  }
-  return argMax(Object.keys(index), label => index[label]);
-}
+const {shuffle, majorityVote} = require('../utils');
+const log = require('../utils/log');
 
 class Ensemble {
 
@@ -37,44 +25,38 @@ class Ensemble {
    * @return {Number} accuracy score in [0, 1]
    */
   score() {
-    return this.aggScore(this.ensemble.map((c, idx) => {
-      const s = c.score();
-      console.info(`Score(${c.toString()}) = ${s}`);
-      return s;
-    }));
+    return this.aggScore(this.ensemble.map((c, idx) => c.score()));
   }
 
   /**
    * Initialise (learn) the model.
    */
   fit() {
-    this.ensemble = [].concat(this.ensemble).concat(this.ensemble);
-    for (let c = 0; c < this.ensemble.length; c++) {
-      let xs = [].concat(this.data);
-      let ys = [].concat(this.labels);
-      const joint = ys.map((y, idx) => [xs[idx], y]);
-      shuffle(joint);
-
-      xs = [];
-      ys = [];
-
-      for (const pair of joint) {
-        xs.push(pair[0]);
-        ys.push(pair[1]);
-      }
-
-      const model = this.ensemble[c](xs, ys);
-      model.fit();
-      this.ensemble[c] = model;
+    for (let row = 0; row < this.data.length; row++) {
+      this.data[row].push(this.labels[row]);
     }
 
-    this.ensemble = this.ensemble.sort((a, b) => {
-      const aS = a.score();
-      const bS = b.score();
-      if (aS > bS) return -1;
-      else if (bS > aS) return 1;
+    let classifiers = [];
+    const noClassifiers = Math.floor(this.ensemble.length * 1.5);
+
+    for (let c = 0; c < noClassifiers; c++) {
+      shuffle(this.data);
+      let xs = this.data.map(row => row.slice(0, row.length - 1));
+      let ys = this.data.map(row => row[row.length - 1]);
+      const model = this.ensemble[c % this.ensemble.length](xs, ys);
+      model.fit();
+      classifiers.push(model);
+      log.info(`finished training ${model}`);
+    }
+
+    // sort desc
+    this.ensemble = classifiers.sort((c1, c2) => {
+      const s1 = c1.score();
+      const s2 = c2.score();
+      if (s1 > s2) return -1;
+      else if (s1 < s2) return 1;
       else return 0;
-    }).slice(0, this.ensemble.length / 2);
+    }).slice(0, this.ensemble.length);
   }
 
   /**

@@ -6,6 +6,7 @@
 function mse(xs, ys) {
   return xs.map((v, idx) => (v - ys[idx])**2).reduce((v1, v2) => v1 + v2) / xs.length;
 }
+
 /**
  * @param {!Array<!Number>} xs
  * @param {!Array<!Number>} ys

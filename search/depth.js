@@ -1,3 +1,5 @@
+const log = require('../utils/log');
+
 class DepthFirstSearch {
   /**
    * @param {*} [s0] initial state
@@ -28,7 +30,7 @@ class DepthFirstSearch {
       this.s0 = s;
       const candidate = this.search();
       if (candidate !== null) {
-        console.info(`found result on ${this.depth} lvl of depth`);
+        log.info(`found result on ${this.depth} lvl of depth`);
         return candidate;
       }
     }

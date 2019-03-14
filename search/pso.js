@@ -1,3 +1,4 @@
+const log = require('../utils/log');
 const { randInRange } = require('../utils/random');
 
 class PSO {
@@ -55,16 +56,16 @@ class PSO {
     const nItersDone = () => this.nIters - itersLeft;
     while (true) {
       if (itersLeft === 0) {
-        console.info(`[${this.nIters}/${this.nIters}] iterations, took ${elapsedSec()}s`);
+        log.info(`[${this.nIters}/${this.nIters}] iterations, took ${elapsedSec()}s`);
         break;
       } else if (elapsedSec() >= this.sec) {
-        console.info(`time limit reached, took ${elapsedSec()}s, did ${nItersDone()} iterations`);
+        log.info(`time limit reached, took ${elapsedSec()}s, did ${nItersDone()} iterations`);
         break;
       } else if (scores.length >= this.roundsCheck
           && scores.slice(0, scores.length - 1)
             .map((s, idx) => Math.abs(s - scores[idx + 1]))
             .reduce((s1, s2) => s1 + s2) < this.minCombDiff) {
-        console.info(`no changes for ${this.roundsCheck} rounds, took ${elapsedSec()}s, did ${nItersDone()} iterations`);
+        log.info(`no changes for ${this.roundsCheck} rounds, took ${elapsedSec()}s, did ${nItersDone()} iterations`);
         break;
       } else itersLeft--;
       for (let p = 0; p < nParticles; p++) {

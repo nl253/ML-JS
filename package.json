@@ -4,7 +4,10 @@
     "url": "https://github.com/nl253/ML-JS/issues"
   },
   "dependencies": {
-    "tinyqueue": "^2.0.0"
+    "csv": "^5.1.1",
+    "csv-parse": "latest",
+    "tinyqueue": "^2.0.0",
+    "winston": "^3.2.1"
   },
   "description": "Machine learning library",
   "devDependencies": {

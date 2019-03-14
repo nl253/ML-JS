@@ -1,5 +1,6 @@
 const {Classifier} = require('./index');
 const {euclideanDist} = require('../utils');
+const log = require('../utils/log');
 
 class KNN extends Classifier {
   /**
@@ -15,7 +16,7 @@ class KNN extends Classifier {
   }
 
   fit() {
-    console.warn(`fitting not needed for ${this.constructor.name}`);
+    log.warn(`fitting not needed for ${this.constructor.name}`);
   }
 
   /**

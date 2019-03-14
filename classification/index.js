@@ -1,3 +1,5 @@
+const log = require('../utils/log');
+
 class Classifier {
   /**
    * @param {Array<Array<*>>} data
@@ -68,7 +70,7 @@ class Classifier {
    * Initialise (learn) the model.
    */
   fit() {
-    return console.warn('Model.fit() needs to be overridden');
+    return log.warn('Model.fit() needs to be overridden');
   }
 
   /**
@@ -83,7 +85,7 @@ class Classifier {
    * @return {*} prediction
    */
   predict(x) {
-    return console.warn('Model.predict(x) needs to be overridden');
+    return log.warn('Model.predict(x) needs to be overridden');
   }
 
   toString() {
