@@ -39,7 +39,7 @@ class RandTree extends Classifier {
     this.maxWaitSec = maxWaitSec === null ? Math.max(2, Math.floor((180 / this.featureCount))) : maxWaitSec;
     this.mutationP = mutationP === null ? randInRange(0.75, 1) : mutationP;
     this.maxRounds = maxRounds === null ? Math.floor(randInRange(50, 150)) : maxRounds;
-    this.minLeafItems = minLeafItems === null ? Math.floor(randInRange(Math.max(7, this.dataTrainCount * 2 / 100), this.dataTrainCount * 2 / 100 * 3)) : minLeafItems;
+    this.minLeafItems = minLeafItems === null ? Math.floor(randInRange(Math.max(3, this.dataTrainCount * 0.01), Math.max(7, this.dataTrainCount * 0.02))) : minLeafItems;
     this.minPurity = minPurity === null ? randInRange(0.75, 0.95) : minPurity;
   }
 
@@ -175,8 +175,8 @@ class RandTree extends Classifier {
         this.uniqueLabels,
         l => candidates.filter(c => c.label === l).length,
       );
-      if (depthLimit <= 0) log.info(`depth limit on label ${label}`);
-      else log.info(`min children reached [${candidates.length}/${this.minLeafItems}]`);
+      if (depthLimit <= 0) log.debug(`depth limit on label ${label}`);
+      else log.debug(`min children reached [${candidates.length}/${this.minLeafItems}]`);
       return {
         label,
         confidence: RandTree._confidence(label, candidates),
@@ -186,7 +186,7 @@ class RandTree extends Classifier {
     } else {
       const purityScore = this._purity(candidates);
       if (purityScore >= this.minPurity) {
-        log.info(`pure on #candidates = ${candidates.length}`);
+        log.debug(`pure on #candidates = ${candidates.length}`);
         const { label } = candidates[0];
         return {
           label,

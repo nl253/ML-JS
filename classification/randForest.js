@@ -3,7 +3,7 @@ const {randInRange} = require('../utils/random');
 const Tree = require('./randTree');
 const Ensemble = require('./ensemble');
 
-class Forest extends Classifier {
+class RandForest extends Classifier {
   /**
    * @param {!Array<!Array<*>>} data
    * @param {!Array<*>} labels
@@ -65,4 +65,4 @@ class Forest extends Classifier {
   }
 }
 
-module.exports = Forest;
+module.exports = RandForest;

@@ -76,15 +76,15 @@ class GeneticAlgo {
     while (true) {
       // check for timeout
       if (elapsedSec() >= this.sec) {
-        log.info(`timeout (${elapsedSec()}s), did [${roundsDone()}/${this.n}] rounds `);
+        log.debug(`timeout (${elapsedSec()}s), did [${roundsDone()}/${this.n}] rounds `);
         break;
         // check for rounds
       } else if (roundsLeft === 0) {
-        log.info(`did [${this.n}/${this.n}] rounds, took ${elapsedSec()}s`);
+        log.debug(`did [${this.n}/${this.n}] rounds, took ${elapsedSec()}s`);
         break;
         // check for stuck in local minimum
       } else if (scores.length >= this.roundsCheck && scores.slice(0, scores.length - 1).map((s, idx) => Math.abs(s - scores[idx + 1])).reduce((diff1, diff2) => diff1 + diff2, 0) < this.minDiff) {
-        log.info(`stuck after ${elapsedSec()}s, [${roundsDone()}/${this.n}] rounds`);
+        log.debug(`stuck after ${elapsedSec()}s, [${roundsDone()}/${this.n}] rounds`);
         break;
       } else roundsLeft--;
 
