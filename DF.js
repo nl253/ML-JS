@@ -1,3 +1,4 @@
+const {readCSV} = require('./utils/data');
 const {toTypedArray, transpose: t} = require('./utils');
 const {mean, variance, mad, median, nQuart} = require('./utils/stats');
 
@@ -153,6 +154,33 @@ class DF {
   }
 
   /**
+   * @param {!String|!Number} colA
+   * @param {!String|!Number} colB
+   * @return {!DF} data frame
+   */
+  slice(colA, colB) {
+    const resolveName = (c) =>
+      c.constructor.name === 'String'
+        ? this.colNames.findIndex(nm => nm === c)
+        : c;
+    const colNames = [];
+    for (let i = resolveName(colA); i < resolveName(colB); i++) {
+      colNames.push(this.colNames[i]);
+    }
+    return this.select(colNames);
+  }
+
+  /**
+   * @param colNames
+   * @return {DF}
+   */
+  select(colNames) {
+    const cols = [];
+    for (const c of colNames) cols.push(this.col(c));
+    return new DF(cols, 'cols', colNames);
+  }
+
+  /**
    * Summaries each column.
    *
    * @return {DF} data frame
@@ -167,13 +195,20 @@ class DF {
       dtype: [],
     };
     for (let c = 0; c < this.colNames.length; c++) {
+      const dtype = this.dtype[c];
       const name = this.colNames[c];
+      if (dtype === 'String') {
+        for (const k in info) info[k].push('nan');
+        info.column[info.column.length - 1] = name;
+        info.dtype[info.dtype.length - 1] = dtype;
+        continue
+      }
       const min = this.col(c).reduce((v1, v2) => Math.min(v1, v2));
       const max = this.col(c).reduce((v1, v2) => Math.max(v1, v2));
       const v = variance(this.col(c));
       info.column.push(name);
       info.mean.push(mean(this.col(c)));
-      info.dtype.push(this.dtype[c]);
+      info.dtype.push(dtype);
       info.variance.push(v);
       info.stdev.push(Math.sqrt(v));
       info.Q1.push(nQuart(this.col(c), 1, 4));
@@ -207,9 +242,10 @@ class DF {
 
   /**
    * @param {!Number} [n]
-   * @param {!Number} [m]
+   * @param {?Number} [m]
    */
-  print(n = 0, m = 20) {
+  print(n = 25, m = null) {
+    if (m === null) return this.print(0, n);
     const tabularData = Array.from(this.rowIter).slice(n, m).map(row => {
       const dict = {};
       for (let v = 0; v < row.length; v++) {
@@ -218,6 +254,25 @@ class DF {
       return dict;
     });
     console.table(tabularData);
+  }
+
+  /**
+   * @param {!String} filePath
+   * @param {?Boolean} [hasHeader]
+   * @param {?Array<!String>} colNames
+   * @return {!DF} data frame
+   */
+  static fromCSV(filePath, hasHeader = true, colNames = null) {
+    const table = t(readCSV(filePath, false));
+    for (let c = 0; c < table.length; c++) {
+      if (!table[c].find(val => !val.match(/^(\d+\.\d*|\d*\.\d+)$/g))) {
+        table[c] = table[c].map(parseFloat)
+      }
+    }
+    return new DF(
+      hasHeader ? table.slice(1) : table,
+      'cols',
+      hasHeader ? table.slice(0, 1)[0] : colNames);
   }
 
   toString() {
