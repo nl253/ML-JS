@@ -32,8 +32,8 @@ class KMeans {
 
   cluster() {
     // oldPos & pos stores index of centroid
-    let oldPos = Array(data.length).fill(0);
-    let pos = Array(data.length).fill(1);
+    let oldPos = Array(this.data.length).fill(0);
+    let pos = Array(this.data.length).fill(1);
 
     const isDone = () => {
       for (let i = 0; i < pos.length; i++) {

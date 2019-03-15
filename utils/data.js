@@ -15,7 +15,7 @@ function readJSON(filePath) {
 function readCSV(filePath, hasHeader = false) {
   let rows = readFileSync(filePath)
     .toString('utf-8')
-    .split(/\r?\n/)
+    .split(/\r?\n/g)
     .map(x => x.split(','));
   if (rows[rows.length - 1].length === 1 && rows[rows.length - 1][0] === '') {
     rows = rows.slice(0, rows.length - 1);

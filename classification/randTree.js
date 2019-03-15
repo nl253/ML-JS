@@ -308,7 +308,7 @@ class RandTree extends Classifier {
   }
 
   toString() {
-    return `${this.constructor.name} { height = ${this.treeHeight}/${this.maxDepth}, ${this.tree !== undefined ? 'score = ' + this.score().toPrecision(2) + ', ' : ''}leafItems = ${this.minLeafItems}, minPurity = ${this.minPurity.toPrecision(2)} }`;
+    return `${this.constructor.name} { ${this.tree !== undefined ? 'acc = ' + this.score().toPrecision(2) + ', ' : ''}height = ${this.treeHeight}/${this.maxDepth}, #data = ${this.dataTrain.length}, leafItems = ${this.minLeafItems}, minPurity = ${this.minPurity.toPrecision(2)} }`;
   }
 }
 

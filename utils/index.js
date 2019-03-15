@@ -185,6 +185,40 @@ function categorize(data = [], labels = ['low', 'medium', 'high'], nums = [.3, .
   return result;
 }
 
+/**
+ * @param {!Array<!Number>} column
+ * @return {!Array<!Number>} normalized column
+ */
+function normalize(column) {
+  const max = column.reduce((v1, v2) => Math.max(v1, v2));
+  return column.map(v => v / max);
+}
+
+/**
+ * @param {Array<!Number>} col
+ * @return {TypedArray|Array<String>} typed array
+ */
+function toTypedArray(col) {
+  if (col[0].constructor.name === 'String') return col;
+  const isInt = !col.find(v => v !== Math.round(v));
+  if (isInt) {
+    const maxVal = col.reduce((v1, v2) => Math.max(v1, v2));
+    const bitsNeeded = Math.log2(maxVal);
+    const isNeg = col.find(v => v < 0);
+    if (!isNeg) {
+      if (bitsNeeded <= 8) return new Uint8Array(col);
+      if (bitsNeeded <= 16) return new Uint16Array(col);
+      if (bitsNeeded <= 32) return new Uint32Array(col);
+      if (bitsNeeded <= 64) return new BigUint64Array(col);
+    } else {
+      if (bitsNeeded <= 8) return new Int8Array(col);
+      if (bitsNeeded <= 16) return new Int16Array(col);
+      if (bitsNeeded <= 32) return new Int32Array(col);
+      if (bitsNeeded <= 64) return new BigInt64Array(col);
+    }
+  } else return new Float32Array(col);
+}
+
 module.exports = {
   euclideanDist: (xs, ys) => minkowskyDist(xs, ys, 2),
   manhattanDist: (xs, ys) => minkowskyDist(xs, ys, 1),
@@ -196,8 +230,10 @@ module.exports = {
   argMax,
   information,
   argMin,
+  normalize,
   chebyshevDist,
   entropy,
   categorize,
+  toTypedArray,
   minkowskyDist,
 };

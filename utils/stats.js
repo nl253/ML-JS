@@ -1,26 +1,15 @@
 const { bag } = require('.');
 
+/**
+ * @param {!Array<!Number>|!TypedArray} nums
+ * @return {!Number}
+ */
 function mean(nums) {
   return nums.reduce((x1, x2) => x1 + x2) / nums.length;
 }
 
 /**
- * @param {!Array<!Number>} xs
- * @param {!Array<!Number>} ys
- * @return {Number}
- */
-/*
- * function covariance(xs, ys) {
- * const muXS = mean(xs);
- * const muYS = mean(ys);
- * const left = xs.map(x => x - muXS);
- * const right = ys.map(y => y - muYS);
- * return mean(left.map((l, idx) => l * right[idx]).reduce((a, b) => a + b));
- * }
- */
-
-/**
- * @param {!Array<!Number>} nums non-empty array of nums
+ * @param {!Array<!Number>|!TypedArray} nums non-empty array of nums
  * @returns {number}
  */
 function variance(nums) {
@@ -29,7 +18,7 @@ function variance(nums) {
 }
 
 /**
- * @param {!Array<!Number>} nums non-empty array of nums
+ * @param {!Array<!Number>|!TypedArray} nums non-empty array of nums
  * @returns {number}
  */
 function stdev(nums) {
@@ -41,8 +30,7 @@ function stdev(nums) {
  * @returns {{min: number, max: number}}
  */
 function range(xs) {
-  return xs.reduce((x1, x2) => Math.max(x1, x2))
-      - xs.reduce((x1, x2) => Math.min(x1, x2));
+  return xs.reduce((x1, x2) => Math.max(x1, x2)) - xs.reduce((x1, x2) => Math.min(x1, x2));
 }
 
 /**
@@ -68,21 +56,21 @@ function mad(xs) {
 }
 
 /**
- * @param {!Array<!Number>} xs
- * @returns {!number} median
+ * @param {!Array<!Number>|!TypedArray} xs
+ * @returns {!Number} median
  */
 function median(xs) {
   return nQuart(xs, 1, 2);
 }
 
 /**
- * @param {!Array<!Number>} xs
+ * @param {!Array<!Number>|!TypedArray} xs
  * @param {!Number} [n]
  * @param {!Number} [m]
  * @returns {!number} nth quartile
  */
 function nQuart(xs, n = 2, m = 4) {
-  const ys = [].concat(xs).sort();
+  const ys = [].concat(Array.from(xs)).sort();
   if ((ys.length * n / m) % 1 !== 0) return ys[Math.floor(ys.length * n / m)];
   const middle = ys.length * n / m;
   const v1 = ys[middle];

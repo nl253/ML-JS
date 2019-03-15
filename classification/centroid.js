@@ -1,6 +1,7 @@
 const {Classifier} = require('./index');
 const KMeans = require('../clustering/kmeans');
 const {argMin, euclideanDist} = require("../utils");
+const log = require('../utils/log');
 
 class Centroid extends Classifier {
 
@@ -9,7 +10,8 @@ class Centroid extends Classifier {
   }
 
   fit() {
-    this.centroids = new KMeans(this.data, this.uniqueLabels.length).cluster();
+    this.centroids = new KMeans(this.dataTrain, this.uniqueLabels.length).cluster();
+    console.debug(`#centroids = ${this.centroids.length}`);
 
     // now map unique labels to centroids
     this.table = {};
@@ -19,8 +21,8 @@ class Centroid extends Classifier {
     }
 
     for (let c = 0; c < this.centroids.length; c++) {
-      for (let row = 0; row < this.data.length; row++) {
-        this.table[this.labels[row]][c] += euclideanDist(this.data[row], this.centroids[c]);
+      for (let row = 0; row < this.dataTrain.length; row++) {
+        this.table[this.labelsTrain[row]][c] += euclideanDist(this.dataTrain[row], this.centroids[c]);
       }
     }
 
@@ -50,6 +52,10 @@ class Centroid extends Classifier {
 
   predict(x) {
     return this.table[argMin(this.centroids.map((_, idx) => idx), idx => euclideanDist(x, this.centroids[idx]))]
+  }
+
+  toString() {
+    return `${this.constructor.name} { #centroids = ${this.centroids.length}, acc = ${this.score()}, #data = ${this.dataTrain.length} }`
   }
 }
 

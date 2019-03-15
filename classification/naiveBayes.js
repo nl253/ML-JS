@@ -71,6 +71,10 @@ class NaiveBayes extends Classifier {
               : 0).reduce((a, b) => a * b, 1) * this.labelValsPS[variant]]).
         reduce((pair1, pair2) => pair1[1] > pair2[1] ? pair1 : pair2)[0];
   }
+
+  toString() {
+    return `${this.constructor.name} { ${ this.labelValsPS !== undefined ? 'acc = ' + this.score() + ' ' : ''}#data = ${this.dataTrain.length}, r = ${this.r} }`;
+  }
 }
 
 module.exports = NaiveBayes;
