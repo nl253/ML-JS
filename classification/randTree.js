@@ -1,7 +1,7 @@
 const { Classifier } = require('.');
 const { argMax } = require('../utils');
 const GA = require('../search/genetic');
-const { randInRange, randBitStr } = require('../utils/random');
+const { randInRange } = require('../utils/random');
 const log = require('../utils/log');
 
 
@@ -192,14 +192,14 @@ class RandTree extends Classifier {
     const ga = new GA(
       bits => this._fitnessF(RandTree._decode(bits, bitsFeature, bitsVal, candidates.length), candidates),
       100,
-      bitsFeature +  bitsVal + 1,
       this.maxRounds,
       this.maxWaitSec,
       this.mutationP,
       this.popGrowthFactor,
       5,
       0.5,
-      Math.floor(this.popSize * 0.1),
+      0.5,
+      0.15,
     );
 
     const { attrIdx, opName, valIdx, opF } = RandTree._decode(ga.search()[0], bitsFeature, bitsVal, candidates.length);

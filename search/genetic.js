@@ -48,7 +48,16 @@ class GeneticAlgo {
    * @param {!Number} [priorityRatio] what ratio of candidates to prioritise
    * @param {!Number} [priorityP] probability of prioritising top candidates for selection for operators
    */
-  constructor(f = n => n, noCandidates = 100, n = 10000, sec = 30, mutationP = 0.15, popGrowthFactor = 3.5, roundsCheck = 5, minDiff = 0.5, priorityRatio = 0.5, priorityP = 0.15) {
+  constructor(f = n => n,
+              noCandidates = 100,
+              n = 10000,
+              sec = 30,
+              mutationP = 0.15,
+              popGrowthFactor = 3.5,
+              roundsCheck = 5,
+              minDiff = 0.5,
+              priorityRatio = 0.5,
+              priorityP = 0.15) {
     this.f = f;
     this.noCandidates = noCandidates;
     this.minDiff = minDiff;
@@ -63,48 +72,78 @@ class GeneticAlgo {
     this.sec = sec;
     this.n = n;
     this.mutationP = mutationP;
+    this.startTime = null;
+    this.endTime = null;
+    this.roundsLeft = n;
+  }
+
+  /**
+   * @return {?Date} time taken (needs to finish)
+   */
+  get timeTaken() {
+    return this.endTime - this.startTime;
+  }
+
+  /* the most fit candidates are first in the candidates array
+   * priorities the first candidates for cross-over / mutation */
+  get randCandidate() {
+    return this.candidates[
+      Math.trunc(randInRange(
+        Math.random() >= this.priorityP
+          ? this.noCandidates * this.priorityRatio
+          : this.noCandidates
+      ))];
+  }
+
+  /**
+   * @return {?Number} seconds since start
+   */
+  get elapsedSec() {
+    return (Date.now() - this.startTime) / 1000;
+  }
+
+  /**
+   * @return {!Number} number of rounds completed
+   */
+  get roundsDone() {
+    return this.n - this.roundsLeft;
+  }
+
+  /**
+   * @return {!Number} difference in the last iterations
+   */
+  get diffScore() {
+    return this.scores
+      .slice(0, this.scores.length - 1)
+      .map((s, idx) => Math.abs(s - this.scores[idx + 1]))
+      .reduce((diff1, diff2) => Math.max(diff1, diff2), 0);
   }
 
   /**
    * @returns {!Int32Array} best candidates ordered by fitness descending
    */
   search() {
-    const SEC = 1000;
-    const startTime = Date.now();
-    const elapsedSec = () => (Date.now() - startTime) / SEC;
-    let roundsLeft = this.n;
-    const roundsDone = () => this.n - roundsLeft;
-
-    /* the most fit candidates are first in the candidates array
-     * priorities the first candidates for cross-over / mutation */
-    const sample = () => this.candidates[
-      Math.trunc(randInRange(
-        Math.random() >= this.priorityP
-          ? this.noCandidates * this.priorityRatio
-          : this.noCandidates
-      ))];
+    this.startTime = Date.now();
 
     while (true) {
       // check for timeout
-      if (elapsedSec() >= this.sec) {
-        log.debug(`timeout (${elapsedSec()}s), did [${roundsDone()}/${this.n}] rounds `);
+      if (this.elapsedSec >= this.sec) {
+        log.debug(`timeout (${this.elapsedSec}s), did [${this.roundsDone}/${this.n}] rounds `);
         break;
         // check for rounds
-      } else if (roundsLeft === 0) {
-        log.debug(`did [${this.n}/${this.n}] rounds, took ${elapsedSec()}s`);
+      } else if (this.roundsLeft === 0) {
+        log.debug(`did [${this.n}/${this.n}] rounds, took ${this.elapsedSec}s`);
         break;
         // check for stuck in local minimum
-      } else if (this.scores.slice(0, this.scores.length - 1)
-                            .map((s, idx) => Math.abs(s - this.scores[idx + 1]))
-                            .reduce((diff1, diff2) => Math.max(diff1, diff2), 0) < this.minDiff) {
-        log.debug(`stuck after ${elapsedSec()}s, [${roundsDone()}/${this.n}] rounds`);
+      } else if (this.diffScore < this.minDiff) {
+        log.debug(`stuck after ${this.elapsedSec}s, [${this.roundsDone}/${this.n}] rounds`);
         break;
-      } else roundsLeft--;
+      } else this.roundsLeft--;
 
       for (let i = this.noCandidates; i < this.candidates.length; i++) {
         this.candidates[i] = Math.random() <= this.mutationP
-          ? mutate(sample())
-          : crossOver(sample(), sample());
+          ? mutate(this.randCandidate)
+          : crossOver(this.randCandidate, this.randCandidate);
       }
 
       const cache = {};
@@ -123,9 +162,16 @@ class GeneticAlgo {
       for (let i = 0; i < this.scores.length - 1; i++) {
         this.scores[i] = this.scores[i + 1];
       }
-      this.scores[this.scores.length - 1] = this.candidates.map(c => cache[c]).reduce((s1, s2) => s1 + s2, 0);
+      this.scores[this.scores.length - 1] = this.candidates.slice(0, this.noCandidates)
+                                                           .map(c => cache[c])
+                                                           .reduce((s1, s2) => s1 + s2, 0);
     }
+    this.endTime = Date.now();
     return this.candidates.subarray(0, this.noCandidates);
+  }
+
+  toString() {
+    return `GeneticAlgo { #pop = ${this.noCandidates}, growth = ${this.candidates.length / this.noCandidates}, mutationP = ${this.mutationP}, timeLimit: ${this.sec} }`;
   }
 }
 
