@@ -51,17 +51,6 @@ class RandTree extends Classifier {
   }
 
   /**
-   * @param {!number} bitsFeature
-   * @param {!number} bitsVal
-   * @returns {!Array<!String>} population
-   * @private
-   */
-  _makePopulation(bitsFeature, bitsVal) {
-    return Array(this.popSize).fill(0)
-      .map(_ => randBitStr(bitsFeature) + (Math.random() > 0.5 ? '0' : '1') + randBitStr(bitsVal));
-  }
-
-  /**
    * @param {!Array<{label: *}>} cs
    * @returns {!number} purity ratio [0, 1]
    */
@@ -201,8 +190,9 @@ class RandTree extends Classifier {
     const bitsVal = Math.floor(Math.log2(candidates.length));
 
     const ga = new GA(
-      this._makePopulation(bitsFeature, bitsVal),
       bits => this._fitnessF(RandTree._decode(bits, bitsFeature, bitsVal, candidates.length), candidates),
+      100,
+      bitsFeature +  bitsVal + 1,
       this.maxRounds,
       this.maxWaitSec,
       this.mutationP,

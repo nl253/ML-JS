@@ -38,4 +38,12 @@ function randBitStr(n = 100) {
   return randArr(n, 0, 1).map(v => Math.round(v)).join('');
 }
 
-module.exports = {randArr, randMatrix, randBitStr, randInRange};
+/**
+ * @param {!Number} maxBits
+ * @return {!Number} candidate
+ */
+function randCandidate(maxBits) {
+  return Math.floor(randInRange(0, 2**maxBits));
+}
+
+module.exports = {randArr, randMatrix, randBitStr, randInRange, randCandidate};
