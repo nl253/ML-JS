@@ -7,7 +7,7 @@ const log = require('../utils/log');
 
 class RandTree extends Classifier {
   /**
-   * @param {!Array<!Array<*>>} data
+   * @param {!DF} data
    * @param {!Array<*>} labels
    * @param {!Number} [r]
    * @param {?Number} [minLeafItems]
@@ -45,7 +45,7 @@ class RandTree extends Classifier {
 
   fit() {
     this.tree = this._buildTree(
-      this.dataTrain.map((val, idx) => ({ val, label: this.labelsTrain[idx] })),
+      Array.from(this.dataTrain.rowIter).map((val, idx) => ({ val, label: this.labelsTrain[idx] })),
       this.maxDepth,
     );
   }
@@ -80,7 +80,7 @@ class RandTree extends Classifier {
    * @private
    */
   _support(label) {
-    return this.dataTrain.filter((_, idx) => this.labelsTrain[idx] === label,).length / this.dataTrain.length;
+    return this.labelsTrain.filter(l => l === label).length / this.dataTrainCount;
   }
 
   /**
@@ -283,7 +283,7 @@ class RandTree extends Classifier {
       const stack = ['IF '];
       for (const rule of ruleArr) {
         if (rule.label) {
-          stack.push(`THEN ${rule.label} (conf = ${rule.confidence.toPrecision(2)} from ${rule.count}/${this.dataTrain.length} examples)`);
+          stack.push(`THEN ${rule.label} (conf = ${rule.confidence.toPrecision(2)} from ${rule.count}/${this.dataTrainCount} examples)`);
         } else if (stack[stack.length - 1] === 'IF ') {
           stack.push(`attr nr. ${rule.attrIdx} ${rule.opName === 'lt' ? '<' : '>='} ${rule.threshold} `);
         } else stack.push(`AND attr nr. ${rule.attrIdx} ${rule.opName === 'lt' ? '<' : '>='} ${rule.threshold} `);
@@ -308,7 +308,7 @@ class RandTree extends Classifier {
   }
 
   toString() {
-    return `${this.constructor.name} { ${this.tree !== undefined ? 'acc = ' + this.score().toPrecision(2) + ', ' : ''}height = ${this.treeHeight}/${this.maxDepth}, #data = ${this.dataTrain.length}, leafItems = ${this.minLeafItems}, minPurity = ${this.minPurity.toPrecision(2)} }`;
+    return `${this.constructor.name} { ${this.tree !== undefined ? 'acc = ' + this.score().toPrecision(2) + ', ' : ''}height = ${this.treeHeight}/${this.maxDepth}, #data = ${this.dataTrainCount}, leafItems = ${this.minLeafItems}, minPurity = ${this.minPurity.toPrecision(2)} }`;
   }
 }
 

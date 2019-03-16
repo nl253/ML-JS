@@ -1,9 +1,9 @@
-const {Classifier} = require('.');
+const { Classifier } = require('.');
 
 class NaiveBayes extends Classifier {
 
   /**
-   * @param {Array<Array<*>>} data
+   * @param {!DF} data
    * @param {Array<*>} labels
    * @param {!Number} [r]
    */
@@ -22,8 +22,7 @@ class NaiveBayes extends Classifier {
      */
     this.labelValsPS = {};
     for (const variant of this.uniqueLabels) {
-      this.labelValsPS[variant] = this.labels.filter(
-          l => l === variant).length / this.labels.length;
+      this.labelValsPS[variant] = this.labels.filter(l => l === variant).length / this.labels.length;
     }
 
     /** @type Object<Object<Object<Number>>> */
@@ -33,47 +32,48 @@ class NaiveBayes extends Classifier {
     for (const variant of this.uniqueLabels) {
       this.attrCounts[variant] = {};
       this.attrPS[variant] = {};
-      for (let col = 0; col < this.data[0].length; col++) {
+      for (let col = 0; col < this.featureCount; col++) {
         this.attrCounts[variant][col] = {};
         this.attrPS[variant][col] = {};
       }
     }
 
-    for (let row = 0; row < this.data.length; row++) {
-      for (let col = 0; col < this.data[0].length; col++) {
-        this.attrCounts[this.labels[row]][col][this.data[row][col]] =
-            (this.attrCounts[this.labels[row]][col][this.data[row][col]] || 0) +
-            1;
+    const data = this.dataTrain;
+
+    for (let row = 0; row < this.dataTrainCount; row++) {
+      for (let col = 0; col < this.featureCount; col++) {
+        this.attrCounts[this.labels[row]][col][data.col(col)[row]] =
+          (this.attrCounts[this.labels[row]][col][data.col(col)[row]] || 0) + 1;
       }
     }
 
     for (const variant of this.uniqueLabels) {
-      for (let col = 0; col < this.data[0].length; col++) {
+      for (let col = 0; col < this.featureCount; col++) {
         for (const val of Object.keys(this.attrCounts[variant][col])) {
           this.attrPS[variant][col][val] =
-              this.attrCounts[variant][col][val] /
-              Object.values(this.attrCounts[variant][col]).
-                  reduce((left, right) => left + right);
+            this.attrCounts[variant][col][val] /
+            Object.values(this.attrCounts[variant][col]).reduce((left, right) => left + right);
         }
       }
     }
   }
 
   /**
-   * @param {Array<*>} x input vector (data point)
+   * @param {Array<*>} row input vector (data point)
    * @returns {*} predicted class name
    */
-  predict(x) {
-    return this.uniqueLabels.map(variant => [
-          variant,
-          x.map((val, idx) => this.attrPS[variant][idx][val]
-              ? this.attrPS[variant][idx][val]
-              : 0).reduce((a, b) => a * b, 1) * this.labelValsPS[variant]]).
-        reduce((pair1, pair2) => pair1[1] > pair2[1] ? pair1 : pair2)[0];
+  predict(row) {
+    return this.uniqueLabels.map(label => [
+        label,
+        row.map((val, idx) => this.attrPS[label][idx][val]
+          ? this.attrPS[label][idx][val]
+          : 0)
+          .reduce((a, b) => a * b, 1) * this.labelValsPS[label]])
+      .reduce(([v1, p1], [v2, p2]) => p1 > p2 ? [v1, p1] : [v2, p2])[0];
   }
 
   toString() {
-    return `${this.constructor.name} { ${ this.labelValsPS !== undefined ? 'acc = ' + this.score() + ' ' : ''}#data = ${this.dataTrain.length}, r = ${this.r} }`;
+    return `${this.constructor.name} { ${this.labelValsPS !== undefined ? 'acc = ' + this.score() + ' ' : ''}#data = ${this.dataTrainCount}, r = ${this.r} }`;
   }
 }
 

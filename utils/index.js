@@ -65,7 +65,9 @@ function transpose(xs) {
   if (xs[0].constructor.name !== 'Array') {
     return xs.map(x => [x]);
   }
-  const m = Array(xs[0].length).fill(0).map(_ => Array(xs.length).fill(0));
+  const colCount = xs[0].length;
+  const rowCount = xs.length;
+  const m = Array(colCount).fill(0).map(_ => Array(rowCount).fill(0));
   for (let i = 0; i < xs.length; i++) {
     for (let j = 0; j < xs[i].length; j++) {
       m[j][i] = xs[i][j];
@@ -195,28 +197,56 @@ function normalize(column) {
 }
 
 /**
- * @param {Array<!Number>} col
- * @return {TypedArray|Array<String>} typed array
+ * @param {!Array<!Number>|!Array<String>} col
+ * @return {!TypedArray|!Array<String>} typed array
  */
-function toTypedArray(col) {
+function toTypedArray(col = []) {
   if (col[0].constructor.name === 'String') return col;
-  const isInt = !col.find(v => v !== Math.round(v));
+  const isInt = !col.some(v => v !== Math.trunc(v));
+  let arrView = Float32Array;
+  let bytesPerItem = 4;
   if (isInt) {
-    const maxVal = col.reduce((v1, v2) => Math.max(v1, v2));
-    const bitsNeeded = Math.log2(maxVal);
-    const isNeg = col.find(v => v < 0);
+    const maxVal = col.map(v => Math.abs(v)).reduce((v1, v2) => Math.max(v1, v2));
+    const bitsNeeded = Math.ceil(Math.log2(maxVal));
+    const isNeg = col.some(v => v < 0);
     if (!isNeg) {
-      if (bitsNeeded <= 8) return new Uint8Array(col);
-      if (bitsNeeded <= 16) return new Uint16Array(col);
-      if (bitsNeeded <= 32) return new Uint32Array(col);
-      if (bitsNeeded <= 64) return new BigUint64Array(col);
+      if (bitsNeeded <= 8) {
+        arrView = Uint8Array;
+        bytesPerItem = 1;
+      } else if (bitsNeeded <= 16) {
+        arrView = Uint16Array;
+        bytesPerItem = 2;
+      } else if (bitsNeeded <= 32) {
+        arrView = Uint32Array;
+        bytesPerItem = 4;
+      } else if (bitsNeeded <= 64) {
+        arrView = BigUint64Array;
+        bytesPerItem = 8;
+      } else throw new Error('too large numbers to represent using typed arrays');
     } else {
-      if (bitsNeeded <= 8) return new Int8Array(col);
-      if (bitsNeeded <= 16) return new Int16Array(col);
-      if (bitsNeeded <= 32) return new Int32Array(col);
-      if (bitsNeeded <= 64) return new BigInt64Array(col);
+      if (bitsNeeded <= 4) {
+        arrView = Int8Array;
+        bytesPerItem = 1;
+      } else if (bitsNeeded <= 8) {
+        arrView = Int16Array;
+        bytesPerItem = 1;
+      } else if (bitsNeeded <= 16) {
+        arrView = Int32Array;
+        bytesPerItem = 2;
+      } else if (bitsNeeded <= 32) {
+        arrView = BigInt64Array;
+        bytesPerItem = 4;
+      } else throw new Error('too large numbers to represent using typed arrays');
     }
-  } else return new Float32Array(col);
+  } else {
+    arrView = Float32Array;
+    bytesPerItem = 4;
+  }
+  const view = new arrView(new ArrayBuffer(bytesPerItem * col.length));
+  for (let i = 0; i < col.length; i++) {
+    view[i] = col[i];
+  }
+  return view;
 }
 
 module.exports = {
