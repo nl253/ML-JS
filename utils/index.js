@@ -201,7 +201,8 @@ function normalize(column) {
  * @return {!TypedArray|!Array<String>} typed array
  */
 function toTypedArray(col) {
-  if (col[0].constructor.name === 'String') return col;
+  if (col.length === 0) return col;
+  else if (col[0].constructor.name === 'String') return col;
   const isInt = !col.some(v => v !== Math.trunc(v));
   let arrView = Float32Array;
   let bytesPerItem = 4;

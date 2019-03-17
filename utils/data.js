@@ -1,4 +1,5 @@
 const { readFileSync } = require('fs');
+const parseCSV = require('csv-parse/lib/sync');
 
 /**
  * @param {!string} filePath
@@ -10,18 +11,15 @@ function readJSON(filePath) {
 
 /**
  * @param {!String} filePath
+ * @param {?Boolean} [hasHeader]
  * @returns {Array<Array<String>>} table
  */
 function readCSV(filePath, hasHeader = false) {
-  let rows = readFileSync(filePath)
-    .toString('utf-8')
-    .split(/\r?\n/g)
-    .map(x => x.split(','));
-  if (rows[rows.length - 1].length === 1 && rows[rows.length - 1][0] === '') {
-    rows = rows.slice(0, rows.length - 1);
-  }
-  if (hasHeader) rows = rows.slice(1, rows.length);
-  return rows;
+  return parseCSV(
+    readFileSync(filePath), {
+      header: hasHeader,
+      skip_empty_lines: true,
+    });
 }
 
 module.exports = { readCSV, readJSON };

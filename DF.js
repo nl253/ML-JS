@@ -52,22 +52,13 @@ class DF {
   }
 
   /**
-   * @param {!String} name
-   * @return {!Number} column index
-   * @private
-   */
-  _colNameToIdx(name) {
-    return this.colNames.findIndex(c => c === name);
-  }
-
-  /**
    * @param {!String|!Number} nameOrIdx
    * @return {!Number} column index
    * @private
    */
   _resolveCol(nameOrIdx) {
     return nameOrIdx.constructor.name === 'String'
-      ? this._colNameToIdx(nameOrIdx)
+      ? this.colNames.findIndex(c => c === nameOrIdx)
       : nameOrIdx;
   }
 
@@ -161,7 +152,7 @@ class DF {
   reorder(columns) {
     const cols = [];
     const colNames = [];
-    for (const i of columns.map(this._resolveCol)) {
+    for (const i of columns.map(c => this._resolveCol(c))) {
       cols.push(this._cols[i]);
       colNames.push(this.colNames[i]);
     }
@@ -190,18 +181,32 @@ class DF {
   }
 
   /**
-   * @param {!Number|!String} col
-   * @return {!String} data type for the column
+   * @param {...!String} cols
+   * @return {!Array<!String>|!String} data type for the column
    */
-  dtype(col) {
-    return this._cols[this._resolveCol(col)].constructor.name.replace('Array', '');
+  dtype(...cols) {
+    if (cols.length === 1) {
+      const t = this._cols[this._resolveCol(cols[0])].constructor.name;
+      if (t === 'Array') {
+        return 'Array';
+      } else {
+        return t.replace('Array', '');
+      }
+    } else if (cols.length === 0) {
+      return this.dtypes;
+    } else {
+      return cols.map(c => this.dtype(c));
+    }
   }
 
   /**
    * @return {!Array<!String>} data types for all columns
    */
   get dtypes() {
-    return this._cols.map(c => c.constructor.name.replace('Array', ''));
+    return this._cols.map(c =>
+      c.constructor.name === 'Array'
+        ? 'String'
+        : c.constructor.name.replace('Array', ''));
   }
 
   /**
@@ -261,52 +266,83 @@ class DF {
   }
 
   /**
-   * @param {!String|!Number} colA
-   * @param {?String|?Number} colB
-   * @return {!DF} data frame
+   * @param {...<!String|!Number>} cols col pairs
    */
-  sliceCols(colA, colB = null) {
-    if (colB === null) return this.sliceCols(colA, this.nCols);
-    const colAIdx = this._resolveCol(colA);
-    const colBIdx = this._resolveCol(colB);
-    return this.select(this.colNames.slice(colAIdx, colBIdx));
+  sliceCols(...cols) {
+    if (cols.length === 0) {
+      return this;
+    } else if (cols.length % 2 === 1) {
+      cols.push(this.nCols);
+    }
+
+    const colIds = new Set();
+
+    for (let i = 1; i < cols.length; i+=2) {
+      const min = this._resolveCol(cols[i - 1]);
+      const max = this._resolveCol(cols[i]);
+      for (let c = min; c < max; c++) {
+        colIds.add(c)
+      }
+    }
+
+    return this.select(...colIds);
   }
 
   /**
-   * @param {?Number} [n]
-   * @param {?Number} [m]
-   * @return {!DF} data frame
+   * @param {...!Number} idxs pairs of indexes
+   * @return {!DF} a data frame
    */
-  slice(n = null, m = null) {
-    if (n === null) return this.slice(Math.min(25, process.stdout.rows - 1));
-    else if (m === null) return this.slice(n, this.length);
+  slice(...idxs) {
+    if (idxs.length === 0) {
+      return this;
+    } else if (idxs.length === 1) {
+      return this.slice(idxs[0], this.length);
+    } else if (idxs.length % 2 === 1) {
+      idxs.push(this.length);
+    }
 
-    const cols = this._cols.map(c =>
-      c.constructor.name === 'Array'
-        ? c.slice(n, m)
-        : c.subarray(n, m));
+    const cols = Array(this.nCols).fill(0).map(_ => []);
+
+    // for every pair of indexes
+    for (let i = 1; i < idxs.length; i+=2) {
+      const min = idxs[i - 1];
+      const max = idxs[i];
+      for (let colIdx = 0; colIdx < this.nCols; colIdx++) {
+        for (let rowIdx = min; rowIdx < max; rowIdx++) {
+          cols[colIdx].push(this.val(colIdx, rowIdx));
+        }
+      }
+    }
 
     return new DF(cols, 'cols', [].concat(this.colNames));
   }
 
   /**
-   * @param {!Array<!Number|!String>} colNames
+   * @param {...<!Number|!String>} colNames
    * @return {!DF} data frame
    */
-  select(colNames) {
-    const colIdxs = colNames.map(this._resolveCol);
+  select(...colNames) {
+    colNames = Array.from(new Set(colNames));
+    const colIdxs = colNames.map(c => this._resolveCol(c));
     const cols = this._cols.filter((_c, idx) => colIdxs.indexOf(idx) >= 0);
     return new DF(cols, 'cols', colNames);
   }
 
   /**
-   * @param {!String|!Number} nameOrIdx
+   * @param {...<!String|!Number>} nameOrIdxs
    * @return {!DF} data frame
    */
-  dropCol(nameOrIdx) {
-    const colIdx = this._resolveCol(nameOrIdx);
-    const cols = this._cols.slice(0, colIdx).concat(this._cols.slice(colIdx + 1));
-    const colNames = this.colNames.slice(0, colIdx).concat(this._cols.slice(colIdx + 1));
+  drop(...nameOrIdxs) {
+    const toDelete = nameOrIdxs.map(id => this._resolveCol(id));
+    const cols = [];
+    const colNames = [];
+    const neededCols = this.colNames
+      .map((_, idx) => idx)
+      .filter(colIdx => toDelete.indexOf(colIdx) < 0);
+    for (let cIdx of neededCols) {
+      cols.push(this._cols[cIdx]);
+      colNames.push(this.colNames[cIdx]);
+    }
     return new DF(cols, 'cols', colNames);
   }
 
