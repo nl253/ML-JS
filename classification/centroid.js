@@ -55,7 +55,7 @@ class Centroid extends Classifier {
   }
 
   toString() {
-    return `${this.constructor.name} { #centroids = ${this.centroids.length}, acc = ${this.score()}, #data = ${this.dataTrain.length} }`
+    return `${this.name} { #centroids = ${this.centroids.length}, acc = ${this.score}, #data = ${this.dataTrain.length} }`
   }
 }
 

@@ -7,7 +7,7 @@ const NB = require('../classification/naiveBayes');
 class AdaBoost extends Classifier {
 
   /**
-   * @param {!Array<!Array<*>>} data
+   * @param {!DF} data
    * @param {!Array<*>} labels
    * @param {!Number} [r]
    * @param {!Number} [bias]
@@ -22,19 +22,21 @@ class AdaBoost extends Classifier {
       this.classifiers = Array(n || 5).fill(0).map(_ => ((data, labels, r) => new Tree(data, labels, r)));
     } else this.classifiers = classifiers;
     this.bias = bias;
+    this._dataTrainCache = this.dataTrain;
   }
 
   fit() {
+    // FIXME fixed-sized arrays (won't work)
     for (let c = 0; c < this.classifiers.length; c++) {
-      const model = this.classifiers[c](this.dataTrain, this.labelsTrain, this.r);
+      const model = this.classifiers[c](this._dataTrainCache, this.labelsTrain, this.r);
       log.info(`training ${model.constructor.name} [${c}/${this.classifiers.length}]`);
       model.fit();
-      const dataCount = this.dataTrain.length;
+      const dataCount = this._dataTrainCache.length;
       for (let row = 0; row < dataCount; row++) {
-        if (model.predict(this.dataTrain[row]) !== this.labelsTrain[row]) {
+        if (model.predict(this._dataTrainCache.row(row)) !== this.labelsTrain[row]) {
           log.debug(`boosting example #${row} x${this.bias}`);
           for (let b = 0; b < this.bias; b++) {
-            this.data.push(this.dataTrain[row]);
+            // this.push(this._dataTrainCache.row(row));
             this.labels.push(this.labelsTrain[row]);
           }
         }
@@ -54,7 +56,7 @@ class AdaBoost extends Classifier {
       index[this.classifiers[c].constructor.name] = (index[this.classifiers[c].constructor.name] || 0) + 1;
     }
     let classifierInfo = Object.entries(index).map(([name, count]) => count > 1 ? name + 'x' + count: name).join(', ');
-    return `${this.constructor.name} { ${this.classifiers[0].constructor.name !== 'Function' ? 'acc = ' + this.score() + ' ' : ''}classifiers = ${classifierInfo} }`;
+    return `${this.constructor.name} { ${this.classifiers[0].constructor.name !== 'Function' ? 'acc = ' + this.score + ' ' : ''}classifiers = ${classifierInfo} }`;
   }
 }
 

@@ -14,24 +14,17 @@ class Classifier {
   }
 
   /**
-   * @return {!Number} number of features in each data point
-   */
-  get featureCount() {
-    return this.data.noCols;
-  }
-
-  /**
    * @return {!Number} number of rows in training data
    */
   get dataTrainCount() {
-    return this.data.noRows - this.dataTestCount;
+    return this.data.length - this.dataTestCount;
   }
 
   /**
    * @return {!Number} number of rows in testing data
    */
   get dataTestCount() {
-    return Math.floor(this.data.noRows * this.r);
+    return Math.floor(this.data.length * this.r);
   }
 
   /**
@@ -52,16 +45,29 @@ class Classifier {
    * @return {!DF} testing data
    */
   get dataTest() {
-    return this.data.sliceRows(0, this.dataTestCount, true);
+    if (this._dataTestCache !== undefined) {
+      return this._dataTestCache;
+    }
+    const df = this.data.slice(0, this.dataTestCount);
+    this._dataTestCache = df;
+    return df
   }
 
   /**
    * @return {!DF} training data
    */
   get dataTrain() {
-    return this.data.sliceRows(this.dataTestCount, null, true);
+    if (this._dataTrainCache !== undefined) {
+      return this._dataTrainCache;
+    }
+    const df = this.data.slice(this.dataTestCount, this.data.length);
+    this._dataTrainCache = df;
+    return df;
   }
 
+  /**
+   * @return {!String} name
+   */
   get name() {
     return this.constructor.name;
   }
@@ -70,14 +76,14 @@ class Classifier {
    * Initialise (learn) the model.
    */
   fit() {
-    return log.warn('Model.fit() needs to be overridden');
+    throw new Error('Model.fit() needs to be overridden');
   }
 
   /**
    * @return {Number} accuracy score in [0, 1]
    */
-  score() {
-    return this.dataTest.filterRows((row, idx, _) => this.predict(row) === this.labelsTest[idx]).length / this.dataTestCount;
+  get score() {
+    return this.dataTest.filter((row, idx, _) => this.predict(row) === this.labelsTest[idx]).length / this.dataTestCount;
   }
 
   /**
@@ -89,7 +95,7 @@ class Classifier {
   }
 
   toString() {
-    return `${this.constructor.name} { #features = ${this.featureCount}, #uniqueLables = ${this.uniqueLabels.length}, #dataTrain = ${this.dataTrainCount}, #dataTest = ${this.dataTestCount}, r = ${this.r} }`;
+    return `${this.name} { #features = ${this.data.nCols}, ${this.uniqueLabels.length <= 5 ? 'uniqueLabels = [' + this.uniqueLabels.join(', ') + ']' : '#uniqueLabels = ' + this.uniqueLabels.length  }, #dataTrain = ${this.dataTrainCount}, #dataTest = ${this.dataTestCount}, r = ${this.r} }`;
   }
 }
 

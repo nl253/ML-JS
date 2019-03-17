@@ -32,7 +32,7 @@ class NaiveBayes extends Classifier {
     for (const variant of this.uniqueLabels) {
       this.attrCounts[variant] = {};
       this.attrPS[variant] = {};
-      for (let col = 0; col < this.featureCount; col++) {
+      for (let col = 0; col < this.data.nCols; col++) {
         this.attrCounts[variant][col] = {};
         this.attrPS[variant][col] = {};
       }
@@ -41,14 +41,14 @@ class NaiveBayes extends Classifier {
     const data = this.dataTrain;
 
     for (let row = 0; row < this.dataTrainCount; row++) {
-      for (let col = 0; col < this.featureCount; col++) {
+      for (let col = 0; col < this.data.nCols; col++) {
         this.attrCounts[this.labels[row]][col][data.col(col)[row]] =
           (this.attrCounts[this.labels[row]][col][data.col(col)[row]] || 0) + 1;
       }
     }
 
     for (const variant of this.uniqueLabels) {
-      for (let col = 0; col < this.featureCount; col++) {
+      for (let col = 0; col < this.data.nCols; col++) {
         for (const val of Object.keys(this.attrCounts[variant][col])) {
           this.attrPS[variant][col][val] =
             this.attrCounts[variant][col][val] /
@@ -73,7 +73,7 @@ class NaiveBayes extends Classifier {
   }
 
   toString() {
-    return `${this.constructor.name} { ${this.labelValsPS !== undefined ? 'acc = ' + this.score() + ' ' : ''}#data = ${this.dataTrainCount}, r = ${this.r} }`;
+    return `${this.name} { ${this.labelValsPS !== undefined ? 'acc = ' + this.score + ' ' : ''}#data = ${this.dataTrainCount}, r = ${this.r} }`;
   }
 }
 

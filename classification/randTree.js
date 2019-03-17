@@ -1,7 +1,6 @@
 const { Classifier } = require('.');
-const { argMax } = require('../utils');
-const GA = require('../search/genetic');
-const { randInRange } = require('../utils/random');
+const { argMax, bag } = require('../utils');
+const { randInRange, randNArrEls } = require('../utils/random');
 const log = require('../utils/log');
 
 
@@ -13,232 +12,232 @@ class RandTree extends Classifier {
    * @param {?Number} [minLeafItems]
    * @param {?Number} [minPurity]
    * @param {?Number} [maxDepth]
-   * @param {?Number} [popSize]
-   * @param {?Number} [maxWaitSec]
-   * @param {?Number} [popGrowthFactor]
-   * @param {?Number} [mutationP]
-   * @param {?Number} [maxRounds]
-   */
-  constructor(
-    data,
-    labels,
-    r = 0.125,
-    minLeafItems = null,
-    minPurity = null,
-    maxDepth = null,
-    popSize = null,
-    maxWaitSec = null,
-    popGrowthFactor = null,
-    mutationP = null,
-    maxRounds = null,
-  ) {
-    super(data, labels, r);
-    this.maxDepth = maxDepth === null ? this.featureCount : maxDepth;
-    this.popSize = popSize === null ? Math.floor(randInRange(50, 200)) : popSize;
-    this.popGrowthFactor = popGrowthFactor === null ? randInRange(1.75, 3.5) : popGrowthFactor;
-    this.maxWaitSec = maxWaitSec === null ? Math.max(2, Math.floor((180 / this.featureCount))) : maxWaitSec;
-    this.mutationP = mutationP === null ? randInRange(0.75, 1) : mutationP;
-    this.maxRounds = maxRounds === null ? Math.floor(randInRange(50, 150)) : maxRounds;
-    this.minLeafItems = minLeafItems === null ? Math.floor(randInRange(Math.max(3, this.dataTrainCount * 0.01), Math.max(7, this.dataTrainCount * 0.02))) : minLeafItems;
-    this.minPurity = minPurity === null ? randInRange(0.75, 0.95) : minPurity;
-  }
-
-  fit() {
-    this.tree = this._buildTree(
-      Array.from(this.dataTrain.rowIter).map((val, idx) => ({ val, label: this.labelsTrain[idx] })),
-      this.maxDepth,
-    );
-  }
-
-  /**
-   * @param {!Array<{label: *}>} cs
-   * @returns {!number} purity ratio [0, 1]
-   */
-  _purity(cs) {
-    if (cs.length === 0) return 0;
-    const index = {};
-    for (let c = 0; c < cs.length; c++) {
-      index[cs[c].label] = (index[cs[c].label] || 0) + 1;
-    }
-    return Object.values(index).reduce((c1, c2) => Math.max(c1, c2)) / cs.length;
-  }
-
-  /**
-   * @param {*} label
-   * @returns {!number} support for prediction in [0, 1]
-   * @private
-   */
-  _support(label) {
-    return this.labelsTrain.filter(l => l === label).length / this.dataTrainCount;
-  }
-
-  /**
-   * @param {*} label
-   * @param {Array<*>} candidates
-   * @returns {!number} confidence in prediction in [0, 1]
-   * @private
-   */
-  static _confidence(label, candidates) {
-    return candidates.length === 0
-      ? 0
-      : candidates.filter(c => c.label === label).length / candidates.length;
-  }
-
-  /**
-   * @param {!string} bits
-   * @param {!number} bitsFeature
-   * @param {!number} bitsVal
-   * @param {!number} candidateCount
-   * @returns {!{opName: String, opF: Function, attrIdx: Number, valIdx: Number}} decoded candidate
-   * @private
-   */
-  static _decode(bits, bitsFeature, bitsVal, candidateCount) {
-    const opName = bits[bitsFeature] === '0' ? 'gte' : 'lt';
-    return {
-      attrIdx: eval(`0b${bits.slice(0, bitsFeature)}`),
-      opF: opName === 'gte' ? (a, b) => a >= b : (a, b) => a < b,
-      opName,
-      valIdx: eval(`0b${bits.slice(bitsFeature + 1)}`),
-    };
-  }
-
-  /**
-   * @param {!number} attrIdx
-   * @param {!string} opName "gte" or "lt"
-   * @param {!number} valIdx
-   * @param {!Function} opF operator function
-   * @param {!Array<{val: *, label: *}>} candidates
-   * @param {!Number} [minLeafItems]
-   * @returns {!Number} fitness score
-   * @private
-   */
-  _fitnessF({ attrIdx, opName, valIdx, opF }, candidates, minLeafItems = 6) {
-    const val = candidates[valIdx].val[attrIdx];
-    const t = [];
-    const f = [];
-    for (let c = 0; c < candidates.length; c++) {
-      (opF(candidates[c], val) ? t : f).push(c);
-    }
-
-    let fitness = 0;
-
-    /*
-     * FACTOR #1
-     * penalise if the split between f and t IS NOT equal
-     * the cost is the offset from the difference from candidates.length / 2
-     */
-    const half = candidates.length / 2;
-    const offsetFromHalf = Math.abs(t.length - half);
-    if (offsetFromHalf === 0) fitness += 1;
-    else fitness -= offsetFromHalf / half;
-
-    /*
-     * FACTOR #2
-     * penalise if too few items in each bin
-     * focus on the smaller bin
-     */
-    fitness += Math.min(1, (Math.min(t.length, f.length) - this.minLeafItems) / this.minLeafItems);
-
-    /*
-     * FACTOR #3
-     * penalise if *one* of the bins is not highly homogeneous (pure)
-     * this is the most important factor
-     */
-    fitness -= (1 - Math.max(this._purity(t), this._purity(f))) * 3.5;
-
-    return fitness;
-  }
-
-  /**
-   * Helper function to construct the tree.  Expects each candidate to be paired with a label.
+   * @param {!Number} [maxCheckVals]
+   * @param {!Number} [purityWeight]
+   * @param {!Number} [leafItemWeight]
+   * @param {!Number} [splitWeight]
    *
-   * @param {Array<{label: *, val: *}>} candidates
-   * @param {!number} depthLimit
-   * @returns {?{attrIdx: *, opName: !String, threshold: *, t: Object, f: Object}|?{label: *, confidence: !Number, support: !Number, count: !Number}} tree
+   * NOTE the purityWeight, leafItemWeight, splitWeight, maxCheckVals, minLeafItems and minPurity default values were generated using a
+   *      genetic algorithm so it's probably as good as it's going to get (you don't need to weak it).
+   */
+  constructor(data, labels, r = 0.125, minLeafItems = null, minPurity = null, maxDepth = null, maxCheckVals = 82, purityWeight = 3.238, leafItemWeight = 6.218, splitWeight = 6.15) {
+    super(data, labels, r);
+    this.maxDepth = maxDepth === null ? this.data.nCols : maxDepth;
+    this.purityWeight = purityWeight;
+    this.splitWeight = splitWeight;
+    this.leafItemWeight = leafItemWeight;
+    this.minLeafItems = minLeafItems === null
+      ? Math.floor(
+          randInRange(
+            Math.max(4, this.dataTrainCount * 0.008),
+            Math.max(8, this.dataTrainCount * 0.014)))
+      : minLeafItems;
+    this.minPurity = minPurity === null ? randInRange(0.78, 0.85) : minPurity;
+    this.maxCheckVals = maxCheckVals;
+    this._dataTrainCache = this.dataTrain;
+    this.tree = null;
+    this.support = {};
+    for (let l of this.uniqueLabels) {
+      this.support[l] = this.labelsTrain.filter(lt => l === lt).length / this.labelsTrain.length;
+    }
+  }
+
+  /**
+   * Build a tree.
+   */
+  fit() {
+    const rowIdxs = Array(this._dataTrainCache.length).fill(0).map((_, idx) => idx);
+    const attrIdxs = new Set(Array(this._dataTrainCache.nCols).fill(0).map((_, idx) => idx));
+    this.tree = this._buildTree(rowIdxs, this.maxDepth, attrIdxs);
+  }
+
+  /**
+   * @param {!Array<!Number>} rowIdxs
+   * @returns {!Number} purity ratio [0, 1]
+   */
+  _purity(rowIdxs) {
+    if (rowIdxs.length === 0) return 0;
+    const multiset = bag(rowIdxs.map(row => this.labelsTrain[row]));
+    const bestLabelFreq = Object.values(multiset).reduce((c1, c2) => Math.max(c1, c2));
+    return  bestLabelFreq / rowIdxs.length;
+  }
+
+  /**
+   * @param {*} label
+   * @param {Array<!Number>} rowIdxs
+   * @returns {!Number} confidence in prediction in [0, 1]
    * @private
    */
-  _buildTree(candidates, depthLimit) {
-    if (candidates.length === 0) return null;
-    else if (depthLimit <= 0 || candidates.length < this.minLeafItems) {
-      const label = argMax(
-        this.uniqueLabels,
-        l => candidates.filter(c => c.label === l).length,
-      );
-      if (depthLimit <= 0) log.debug(`depth limit on label ${label}`);
-      else log.debug(`min children reached [${candidates.length}/${this.minLeafItems}]`);
-      return {
-        label,
-        confidence: RandTree._confidence(label, candidates),
-        support: this._support(label),
-        count: candidates.length,
-      };
-    } else {
-      const purityScore = this._purity(candidates);
-      if (purityScore >= this.minPurity) {
-        log.debug(`pure on #candidates = ${candidates.length}`);
-        const { label } = candidates[0];
-        return {
-          label,
-          confidence: purityScore,
-          support: this._support(label),
-          count: candidates.length,
-        };
+  _confidence(label, rowIdxs) {
+    return rowIdxs.length === 0
+      ? 0
+      : rowIdxs.filter(c => this.labelsTrain[c] === label).length / rowIdxs.length;
+  }
+
+  /**
+   * @param {!Number} attrIdx
+   * @param {!Number} valIdx
+   * @param {!Array<!Number>} rowIdxs
+   * @returns {{total: !Number, split: !Number, purity: !Number, leafItems: !Number}} score
+   * @private
+   */
+  _scoreSplit(attrIdx, valIdx, rowIdxs) {
+    const val = this._dataTrainCache.val(attrIdx, valIdx);
+    const lt = [];
+    const gte = [];
+    for (const row of rowIdxs) {
+      if (this._dataTrainCache.val(attrIdx, row) >= val) {
+        gte.push(row);
+      } else {
+        lt.push(row);
       }
     }
 
-    const bitsFeature = Math.floor(Math.log2(this.featureCount));
-    const bitsVal = Math.floor(Math.log2(candidates.length));
-
-    const ga = new GA(
-      bits => this._fitnessF(RandTree._decode(bits, bitsFeature, bitsVal, candidates.length), candidates),
-      100,
-      this.maxRounds,
-      this.maxWaitSec,
-      this.mutationP,
-      this.popGrowthFactor,
-      5,
-      0.5,
-      0.5,
-      0.15,
-    );
-
-    const { attrIdx, opName, valIdx, opF } = RandTree._decode(ga.search()[0], bitsFeature, bitsVal, candidates.length);
-
-    const val = candidates[valIdx].val[attrIdx];
-
-    const t = [];
-    const f = [];
-
-    for (let c = 0; c < candidates.length; c++) {
-      (opF(candidates[c].val[attrIdx], val) ? t : f).push(candidates[c]);
+    /* FACTOR #1
+     * penalise if the split between f and t IS NOT equal
+     * the cost is the offset from the difference from candidates.length / 2 */
+    let scoreSplit = 0;
+    const half = rowIdxs.length / 2;
+    const offsetFromHalf = Math.abs(gte.length - half);
+    if (offsetFromHalf === 0) {
+      scoreSplit = 1;
+    } else {
+      scoreSplit = -(offsetFromHalf / half) * this.splitWeight;
     }
 
+    /* FACTOR #2
+     * penalise if too few items in each bin
+     * focus on the smaller bin */
+    const scoreLeafItems = Math.min(
+      1,
+      (Math.min(gte.length, lt.length) - this.minLeafItems) / this.minLeafItems * this.leafItemWeight);
+
+    /* FACTOR #3
+     * penalise if *one* of the bins is not highly homogeneous (pure)
+     * this is the most important factor */
+    const scorePurity = Math.max(this._purity(gte), this._purity(lt)) * this.purityWeight;
+
     return {
-      attrIdx,
-      threshold: candidates[valIdx].val[attrIdx],
-      opName,
-      t: this._buildTree(t, depthLimit - 1),
-      f: this._buildTree(f, depthLimit - 1),
+      total: scoreSplit + scorePurity + scoreLeafItems,
+      leafItems: scoreLeafItems,
+      purity: scorePurity,
+      split: scoreSplit,
     };
   }
 
   /**
-   * @param {Array<*>} x
+   * @param {!Array<!Number>} rowIdxs
+   * @param {!Number} depthLimit
+   * @param {!Set<!Number>} unUsedAttrs
+   * @returns {?{attrIdx: *, threshold: *, lt: Object, gte: Object}|?{label: *, confidence: !Number, support: !Number, count: !Number}} tree
+   * @private
    */
-  predict(x) {
+  _buildTree(rowIdxs, depthLimit, unUsedAttrs) {
+    if (rowIdxs.length === 0) return null;
+
+    const bestLabel = argMax(
+      this.uniqueLabels,
+      l => rowIdxs.filter(c => this.labelsTrain[c] === l).length,
+    );
+
+    const confidence = this._confidence(bestLabel, rowIdxs);
+    const support = this.support[bestLabel];
+    const count = rowIdxs.length;
+    let isDone = false;
+
+    if (unUsedAttrs.size === 0) {
+      isDone = true;
+      log.debug(`split on all attrs`);
+    } else if (depthLimit <= 0) {
+      isDone = true;
+      log.debug(`depth limit`);
+    } else if ((count / 2) < this.minLeafItems ) {
+      isDone = true;
+      log.debug(`min children reached`);
+    } else if (confidence >= this.minPurity) {
+      isDone = true;
+      log.debug(`pure`);
+    }
+
+    if (isDone) {
+      log.debug(`#leafItems = ${count}/${this.minLeafItems}`);
+      log.debug(`purity = ${confidence.toPrecision(2)}`);
+      log.debug(`depth = ${depthLimit}/${this.maxDepth}`);
+      log.debug(`#attrs = ${unUsedAttrs.size}/${this._dataTrainCache.nCols}`);
+      return { label: bestLabel, confidence, support, count };
+    }
+
+    const {attrIdx, valIdx, score} = this._bestSplit(rowIdxs, unUsedAttrs);
+
+    const nextLvlAttrs = new Set(unUsedAttrs);
+    nextLvlAttrs.delete(attrIdx);
+
+    const threshold = this._dataTrainCache.val(attrIdx, valIdx);
+
+    const gte = [];
+    const lt = [];
+
+    for (const c of rowIdxs) {
+      if (this._dataTrainCache.val(attrIdx, c) >= threshold) {
+        gte.push(c)
+      } else
+        lt.push(c);
+    }
+
+    log.debug(`splitting ${rowIdxs.length} items on ${this._dataTrainCache.colNames[attrIdx]} >= ${this._dataTrainCache.val(attrIdx, valIdx).constructor.name === 'Number' ? this._dataTrainCache.val(attrIdx, valIdx).toPrecision(2) : this._dataTrainCache.val(attrIdx, valIdx) }, #gte = ${gte.length}, #lt = ${lt.length}, purity = ${score.purity.toPrecision(2)} (${(score.purity / 6).toPrecision(2)} * 6), split = ${score.split.toPrecision(2)}, total = ${score.total.toPrecision(2)}, leafItems = ${score.leafItems.toPrecision(2)}`);
+
+    return {
+      attrIdx,
+      threshold,
+      score,
+      gte: this._buildTree(gte, depthLimit - 1, nextLvlAttrs),
+      lt: this._buildTree(lt, depthLimit - 1, nextLvlAttrs),
+    };
+  }
+
+  /**
+   * @param {Array<!Number>} rowIdxs
+   * @param {!Set<!Number>} unUsedAttrs
+   * @return {{attrIdx: !Number, valIdx: !Number, score: {purity: !Number, total: !Number, leafItems: !Number}}} info
+   * @private
+   */
+  _bestSplit(rowIdxs, unUsedAttrs) {
+
+    const rules = [];
+
+    for (let attrIdx of unUsedAttrs) {
+      const noExamples = Math.min(rowIdxs.length, this.maxCheckVals);
+      const sample = randNArrEls(rowIdxs, noExamples);
+      for (const valIdx of sample) {
+        const score = this._scoreSplit(attrIdx, valIdx, rowIdxs);
+        rules.push({ attrIdx, valIdx, score });
+      }
+    }
+
+    return argMax(rules, r => r.score.total);
+  }
+
+  /**
+   * @param {Array<*>} row
+   * @return {*} label
+   */
+  predict(row) {
     /**
-     * @param {{threshold: number, attrIdx: number, t: Object, f: Object, opName: string, support: number, confidence: number, label: *}} node
-     * @param {*} x
+     * @param {{label: *, confidence: !Number, support: !Number, count: !Number}|{threshold: number, attrIdx: number, lt: Object, gte: number, score: Object<Number>}} node
+     * @param {*} row
      * @returns {*}
      * @private
      */
-    function walkPredict(node, x) {
-      if (node === null) return null;
-      else if (node.confidence) return node.label;
-      const { attrIdx, t, f, opName, threshold } = node;
-      return walkPredict((opName === 'lt' ? (a, b) => a < b : (a, b) => a >= b)(x[attrIdx], threshold) ? t : f, x);
+    function walkPredict(node, row) {
+      if (node === null) {
+        return null;
+      } else if (node.label !== undefined){
+        return node.label;
+      }
+      const { attrIdx, lt, gte, threshold } = node;
+      return walkPredict(row[attrIdx] >= threshold ? gte : lt, row);
     }
-    return walkPredict(this.tree, x);
+    return walkPredict(this.tree, row);
   }
 
   /**
@@ -248,17 +247,29 @@ class RandTree extends Classifier {
    */
   get rules() {
     /**
-     * @param {{label: *, confidence: !number, support: !number, count: !number}|{attrIdx: *, opName: !string, threshold: *, t: Object, f: Object}} node
-     * @returns {Array<Array<{label: *, confidence: !number, support: !number, count: !number}|{attrIdx: *, opName: !string, threshold: *}>>} rules
+     * @returns {!Array<!{label: *, confidence: !Number, support: !Number, count: !Number}|!{attrIdx: !Number, threshold: *}>} rules
      * @private
      */
     function collectRules(node) {
-      if (node === null) return [];
-      else if (node.label) return [[node]];
-      const { attrIdx, threshold, t, f, opName } = node;
-      return [t, f].map(subTree => collectRules(subTree)) // [rules from left sub-tree, r. f. r. subtree]
-        .reduce((l, r) => l.concat(r)) // flatten
-        .map(rule => [{ attrIdx, opName, threshold }].concat(rule)); // prepend
+      if (node === null || node === undefined) return [];
+      else if (node.label !== undefined) {
+        return [[node]];
+      }
+      const { attrIdx, threshold, gte, lt } = node;
+      const rules = [];
+      if (lt !== null) {
+        for (const r of collectRules(lt)) {
+          r.unshift({attrIdx, threshold, op: '<'});
+          rules.push(r);
+        }
+      }
+      if (gte !== null) {
+        for (const r of collectRules(gte)) {
+          r.unshift({attrIdx, threshold, op: '>='});
+          rules.push(r);
+        }
+      }
+      return rules;
     }
     return collectRules(this.tree);
   }
@@ -266,19 +277,30 @@ class RandTree extends Classifier {
   /**
    * Rules in plain english.
    *
-   * @returns {Array<string>} rules
+   * @returns {!Array<!String>} rules
    */
   get rulesEng() {
     return this.rules.map((ruleArr) => {
-      const stack = ['IF '];
-      for (const rule of ruleArr) {
-        if (rule.label) {
-          stack.push(`THEN ${rule.label} (conf = ${rule.confidence.toPrecision(2)} from ${rule.count}/${this.dataTrainCount} examples)`);
-        } else if (stack[stack.length - 1] === 'IF ') {
-          stack.push(`attr nr. ${rule.attrIdx} ${rule.opName === 'lt' ? '<' : '>='} ${rule.threshold} `);
-        } else stack.push(`AND attr nr. ${rule.attrIdx} ${rule.opName === 'lt' ? '<' : '>='} ${rule.threshold} `);
+      if (ruleArr.length === 1) {
+        const r = ruleArr[0];
+        return `ASSUME ${r.label} (conf = ${r.confidence.toPrecision(2)} from ${r.count}/${this.dataTrainCount} examples)`
       }
-      if (stack.length === 2) stack[0] = 'ASSUME ';
+
+      const stack = ['IF '];
+
+      const fstRule = ruleArr[0];
+      const printNames = !this._dataTrainCache.colNames.some(c => c.toString().match(/^\d+$/))
+      stack.push(`attr ${printNames ? '' : 'attr no. '}${this._dataTrainCache.colNames[fstRule.attrIdx]} ${fstRule.op} ${fstRule.threshold.constructor.name === 'Number' ? fstRule.threshold.toPrecision(2) : fstRule.threshold} `);
+
+      for (const r of ruleArr.slice(1)) {
+        // is leaf
+        if (r.label !== undefined) {
+          stack.push(`THEN ${r.label} (conf = ${r.confidence.toPrecision(2)} from ${r.count}/${this.dataTrainCount} examples)`);
+        } else {
+          stack.push(`AND ${printNames ? '' : 'attr no. '}${this._dataTrainCache.colNames[r.attrIdx]} ${r.op} ${r.threshold.constructor.name === 'Number' ? r.threshold.toPrecision(2) : r.threshold} `);
+        }
+      }
+
       return stack.join('');
     });
   }
@@ -288,17 +310,17 @@ class RandTree extends Classifier {
    */
   get treeHeight() {
     /**
-     * @param {!{t: Object, f: Object}} t
+     * @param {!{gte: Object, lt: Object}|!{label: *}} t
      * @returns {!number} height
      */
     function h(t) {
-      return t === null || t === undefined ? 0 : 1 + Math.max(h(t.f), h(t.t));
+      return t === null ? 0 : t.label !== undefined  ? 1 : 1 + Math.max(h(t.lt), h(t.gte));
     }
     return h(this.tree);
   }
 
   toString() {
-    return `${this.constructor.name} { ${this.tree !== undefined ? 'acc = ' + this.score().toPrecision(2) + ', ' : ''}height = ${this.treeHeight}/${this.maxDepth}, #data = ${this.dataTrainCount}, leafItems = ${this.minLeafItems}, minPurity = ${this.minPurity.toPrecision(2)} }`;
+    return `${this.constructor.name} { ${this.tree !== undefined ? 'acc = ' + this.score.toPrecision(2) + ', ' : ''}height = ${this.treeHeight}/${this.maxDepth}, #data = ${this.dataTrainCount}, leafItems = ${this.minLeafItems}, minPurity = ${this.minPurity.toPrecision(2)} }`;
   }
 }
 

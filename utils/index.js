@@ -145,7 +145,7 @@ function entropy(ps) {
 /**
  * Shuffles array in place.
  *
- * @param {!Array} a items An array containing the items.
+ * @param {!Array<*>|!TypedArray} a items An array containing the items.
  */
 function shuffle(a) {
   for (let i = a.length - 1; i > 0; i--) {
@@ -200,7 +200,7 @@ function normalize(column) {
  * @param {!Array<!Number>|!Array<String>} col
  * @return {!TypedArray|!Array<String>} typed array
  */
-function toTypedArray(col = []) {
+function toTypedArray(col) {
   if (col[0].constructor.name === 'String') return col;
   const isInt = !col.some(v => v !== Math.trunc(v));
   let arrView = Float32Array;

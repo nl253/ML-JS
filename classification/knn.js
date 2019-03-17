@@ -4,9 +4,9 @@ const log = require('../utils/log');
 
 class KNN extends Classifier {
   /**
-   * @param {Array<Array<Number>>} data
+   * @param {!DF} data
    * @param {Array<*>} labels
-   * @param {Number} k
+   * @param {!Number} k
    * @param {!Function} [distF]
    */
   constructor(data, labels, k = 3, distF = euclideanDist) {
@@ -16,7 +16,7 @@ class KNN extends Classifier {
   }
 
   fit() {
-    log.warn(`fitting not needed for ${this.constructor.name}`);
+    log.warn(`fitting not needed for ${this.name}`);
   }
 
   /**
@@ -24,12 +24,11 @@ class KNN extends Classifier {
    * @return {*} prediction
    */
   predict(x) {
-    const best = this.data.slice(this.k).map((b, idx) => this.labels[idx]);
+    const best = this.dataTrain.slice(0, this.k).map((b, idx) => this.labels[idx]);
+    const bestDist = this.dataTrain.slice(0, this.k).map(datum => this.distF(x, datum, this.p));
 
-    const bestDist = this.data.slice(this.k).map(datum => this.distF(x, datum, this.p));
-
-    for (let row = this.k; row < this.data.length; row++) {
-      const d = this.distF(x, this.data[row], this.p);
+    for (let row = this.k; row < this.dataTrain.length; row++) {
+      const d = this.distF(x, this.dataTrain.row(row), this.p);
       for (let i = 0; i < this.k; i++) {
         if (bestDist[i] > d) {
           best[i] = this.labels[row];
