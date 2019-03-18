@@ -26,6 +26,15 @@
   "engines": {
     "node": ">=10"
   },
+  "files": [
+    "datasets/heart/heart.csv",
+    "datasets/ukMigration/ukMigration.csv",
+    "datasets/usElections2016/usElections2016.csv",
+    "datasets/diabetes/diabetes.csv",
+    "datasets/WHOSuicide/WHOSuicide.csv",
+    "datasets/suicide/suicide.csv",
+    "datasets/iris/iris.csv"
+  ],
   "homepage": "https://github.com/nl253/ML-JS/blob/master/README.md",
   "keywords": [],
   "license": "MIT",

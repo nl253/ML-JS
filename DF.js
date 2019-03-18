@@ -1,9 +1,12 @@
 const {readCSV} = require('./utils/data');
 const {toTypedArray, transpose: t} = require('./utils');
 const {mean, variance, mad, median, nQuart} = require('./utils/stats');
-const {readdirSync} = require('fs');
+const fs = require('fs');
+const zlib = require("zlib");
+const {readdirSync, existsSync, writeFileSync, readFileSync} = require('fs');
 const {shuffle} = require('./utils');
 const {dirname, join} = require('path') ;
+const log = require("./utils/log");
 
 class DF {
   /**
@@ -161,13 +164,13 @@ class DF {
   }
 
   /**
-   * @param {!Array<!Number|!String>} columns
+   * @param {...<!Number|!String>} columns
    * @return {!DF} data frame
    */
-  reorder(columns) {
+  select(...columns) {
     const cols = [];
     const colNames = [];
-    for (const i of columns.map(c => this._resolveCol(c))) {
+    for (const i of Array.from(new Set(columns)).map(c => this._resolveCol(c))) {
       cols.push(this._cols[i]);
       colNames.push(this.colNames[i]);
     }
@@ -240,7 +243,7 @@ class DF {
     for (let colName of this.colNames) {
       const colIdx = this._resolveCol(colName);
       if (this._cols[colIdx].constructor.name === 'Array') {
-        memInfo.cols[colName] = mean(this._cols[colIdx].map(s => s.length));
+        memInfo.cols[colName] = this._cols[colIdx].map(s => s.length).reduce((left, right) => left + right, 0);
       } else {
         memInfo.cols[colName] = this._cols[colIdx].byteLength;
       }
@@ -333,17 +336,6 @@ class DF {
   }
 
   /**
-   * @param {...<!Number|!String>} colNames
-   * @return {!DF} data frame
-   */
-  select(...colNames) {
-    colNames = Array.from(new Set(colNames));
-    const colIdxs = colNames.map(c => this._resolveCol(c));
-    const cols = this._cols.filter((_c, idx) => colIdxs.indexOf(idx) >= 0);
-    return new DF(cols, 'cols', colIdxs.map(idx => this.colNames[idx]));
-  }
-
-  /**
    * @param {!Number|!String} col
    * @param {'asc'|'desc'} ord
    * @return {DF}
@@ -351,7 +343,7 @@ class DF {
   orderBy(col, ord = 'asc') {
     const colIdx = this._resolveCol(col);
     let rows;
-    if (ord.match(/^asc/)) {
+    if (ord.match(/^\s*asc/i)) {
        rows = Array.from(this.rowIter).sort((r1, r2) => {
          if (r1[colIdx] > r2[colIdx]) return 1;
          if (r1[colIdx] < r2[colIdx]) return -1;
@@ -408,23 +400,23 @@ class DF {
     return new DF(rows, 'rows', this.colNames);
   }
 
-  // TODO groupBy
-  // groupBy(col, f = (count, row2) => count + 1, s0) {
-  //   const colIdx = this._resolveCol(col);
-  //   const index = {};
-  //   for (let r of this.rowIter) {
-  //     const row = r.slice(0, colIdx).concat(r.slice(colIdx + 1));
-  //     if (index[r[colIdx]] === undefined) {
-  //       index[r[colIdx]] = [row];
-  //     } else {
-  //       index[r[colIdx]].push(row);
-  //     }
-  //   }
-  //   for (let k of Object.keys(index)) {
-  //     index[k] = index[k].reduce(f, s0);
-  //   }
-  //   return new DF(Object.entries(index), 'rows', [this.colNames[colIdx], 'AggregateFunction']);
-  // }
+  groupBy(col, f = rows => mean(rows), colName = 'AggregateFunction') {
+    const colIdx = this._resolveCol(col);
+    const index = {};
+    for (let r of this.rowIter) {
+      const val = r[colIdx];
+      const row = r.slice(0, colIdx).concat(r.slice(colIdx + 1));
+      if (index[val] === undefined) {
+        index[val] = [row];
+      } else {
+        index[val].push(row);
+      }
+    }
+    for (let k of Object.keys(index)) {
+      index[k] = f(index[k]);
+    }
+    return new DF(Object.entries(index), 'rows', [this.colNames[colIdx], colName]);
+  }
 
   /**
    * Summaries each column.
@@ -474,8 +466,10 @@ class DF {
    */
   toDict() {
     const dict = {};
-    for (let c = 0; c < this.nCols; c++) {
-      dict[this.colNames[c]] = Array.from(this._cols[c]);
+    for (let cIdx = 0; cIdx < this.nCols; cIdx++) {
+      const cName = this.colNames[cIdx]
+      const col = this._cols[cIdx];
+      dict[cName] = Array.from(col);
     }
     return dict;
   }
@@ -487,6 +481,28 @@ class DF {
     return mode === 'rows'
       ? Array.from(this.rowIter)
       : this._cols.map(c => Array.from(c));
+  }
+
+  /**
+   * @return {!String} json-stringified data frame
+   */
+  toJSON() {
+    return JSON.stringify(this.toDict());
+  }
+
+  /**
+   * @param {!String} fileName
+   * @return {!Promise<*>}
+   */
+  toFile(fileName) {
+    if (!fileName.endsWith('.df')) {
+      log.warn('not a "*.df" file name');
+    }
+    const parent = dirname(fileName);
+    if (!existsSync(parent)) {
+      fs.mkdirSync(parent);
+    }
+    return writeFileSync(fileName, zlib.gzipSync(this.toJSON()), { flag: 'w' });
   }
 
   /**
@@ -509,6 +525,32 @@ class DF {
   }
 
   /**
+   * @return {!DF} shallow copy of the data frame
+   */
+  copy() {
+    return new DF([].concat(this._cols), 'cols', [].concat(this.colNames));
+  }
+
+  /**
+   * @return {!DF} clone (deep copy) of the data frame
+   */
+  clone() {
+    const newCols = [];
+    for (let cIdx = 0; cIdx < this.nCols; cIdx++) {
+      const col = this._cols[cIdx];
+      if (col.constructor.name === 'Array') {
+        newCols.push([].concat(col));
+      } else {
+        const newBuf = new ArrayBuffer(col.byteLength);
+        const newTypedArr = new col.constructor(newBuf);
+        newTypedArr.set(col);
+        newCols.push(newTypedArr);
+      }
+    }
+    return new DF(newCols, 'cols', [].concat(this.colNames));
+  }
+
+  /**
    * @param {!String} filePath
    * @param {?Boolean} [hasHeader]
    * @param {?Array<!String>} colNames
@@ -527,14 +569,43 @@ class DF {
     return new DF(cols, 'cols', maybeHeader);
   }
 
+  /**
+   * @param {!String} filePath
+   * @return {!DF}
+   */
+  static fromFile(filePath) {
+    if (!existsSync(filePath) && existsSync(`${filePath}.df`)) {
+      return DF.fromFile(`${filePath}.df`);
+    }
+    const json =  JSON.parse(zlib.gunzipSync(readFileSync(filePath)).toString('utf-8'));
+    const colNames = Object.keys(json);
+    const isIndexed = colNames.map(nm => !!nm.match(/^\d+$/)).reduce((l, r) => l && r, true);
+    return new DF(
+      Object.values(json),
+      'cols',
+      isIndexed ? colNames.map(parseFloat) : colNames);
+  }
+
+  /**
+   * @param {!String} name
+   * @param {?Boolean} hasHeader
+   * @param {?Array<!String>} colNames
+   * @return {!DF} data frame
+   */
   static loadDataSet(name = 'iris', hasHeader = true, colNames = null) {
     return DF.fromCSV(`${dirname(__filename)}/datasets/${name}/${name}.csv`, hasHeader, colNames);
   }
 
+  /**
+   * @return {!String}
+   */
   static get dataSetsPath() {
     return join(dirname(__filename), 'datasets');
   }
 
+  /**
+   * @return {!Array<!String>} datasets
+   */
   static get dataSets() {
     return readdirSync(DF.dataSetsPath).filter(node => !node.match(/\.w+$/));
   }

@@ -94,6 +94,17 @@ class Classifier {
     return log.warn('Model.predict(row) needs to be overridden');
   }
 
+  /**
+   * @return {!Classifier} clone of the classifier
+   */
+  clone(copyData = false) {
+    const copy = new this.constructor(copyData ? this.data.clone() : this.data, copyData ? [].concat(this.labels) : this.labels, this.r);
+    for (let k of Object.keys(this)) {
+      copy[k] = this[k]
+    }
+    return copy;
+  }
+
   toString() {
     return `${this.name} { #features = ${this.data.nCols}, ${this.uniqueLabels.length <= 5 ? 'uniqueLabels = [' + this.uniqueLabels.join(', ') + ']' : '#uniqueLabels = ' + this.uniqueLabels.length  }, #dataTrain = ${this.dataTrainCount}, #dataTest = ${this.dataTestCount}, r = ${this.r} }`;
   }
