@@ -57,9 +57,11 @@ class DF {
    * @private
    */
   _resolveCol(nameOrIdx) {
-    return nameOrIdx.constructor.name === 'String'
-      ? this.colNames.findIndex(c => c === nameOrIdx)
-      : nameOrIdx;
+    if (nameOrIdx.constructor.name === 'String') {
+      return this.colNames.findIndex(c => c === nameOrIdx);
+    } else if (nameOrIdx < 0) {
+      return this._resolveCol(this.nCols + nameOrIdx);
+    } else return nameOrIdx;
   }
 
   /**
@@ -111,6 +113,19 @@ class DF {
       }
     }
     return new DF(cols, 'cols', colNames);
+  }
+
+  /**
+   * @param {!Number|!String} col
+   * @param {!Function} f
+   * @param {!Function} [f2]
+   * @return {!DF} data frame
+   */
+  mapCol(col, f, f2 = toTypedArray) {
+    const colIdx = this._resolveCol(col);
+    const cols = [].concat(this._cols);
+    cols[colIdx] = toTypedArray(cols[colIdx].map(f));
+    return new DF(cols, 'cols', this.colNames);
   }
 
   /**
@@ -271,7 +286,7 @@ class DF {
   sliceCols(...cols) {
     if (cols.length === 0) {
       return this;
-    } else if (cols.length % 2 === 1) {
+    } else if (cols.length % 2 !== 0) {
       cols.push(this.nCols);
     }
 
@@ -297,7 +312,7 @@ class DF {
       return this;
     } else if (idxs.length === 1) {
       return this.slice(idxs[0], this.length);
-    } else if (idxs.length % 2 === 1) {
+    } else if (idxs.length % 2 !== 0) {
       idxs.push(this.length);
     }
 
@@ -325,7 +340,31 @@ class DF {
     colNames = Array.from(new Set(colNames));
     const colIdxs = colNames.map(c => this._resolveCol(c));
     const cols = this._cols.filter((_c, idx) => colIdxs.indexOf(idx) >= 0);
-    return new DF(cols, 'cols', colNames);
+    return new DF(cols, 'cols', colIdxs.map(idx => this.colNames[idx]));
+  }
+
+  /**
+   * @param {!Number|!String} col
+   * @param {'asc'|'desc'} ord
+   * @return {DF}
+   */
+  orderBy(col, ord = 'asc') {
+    const colIdx = this._resolveCol(col);
+    let rows;
+    if (ord.match(/^asc/)) {
+       rows = Array.from(this.rowIter).sort((r1, r2) => {
+         if (r1[colIdx] > r2[colIdx]) return 1;
+         if (r1[colIdx] < r2[colIdx]) return -1;
+         return 0;
+       });
+    } else {
+       rows = Array.from(this.rowIter).sort((r1, r2) => {
+         if (r1[colIdx] < r2[colIdx]) return 1;
+         if (r1[colIdx] > r2[colIdx]) return -1;
+         return 0;
+       });
+    }
+    return new DF(rows, 'rows', this.colNames);
   }
 
   /**
@@ -368,6 +407,24 @@ class DF {
     shuffle(rows);
     return new DF(rows, 'rows', this.colNames);
   }
+
+  // TODO groupBy
+  // groupBy(col, f = (count, row2) => count + 1, s0) {
+  //   const colIdx = this._resolveCol(col);
+  //   const index = {};
+  //   for (let r of this.rowIter) {
+  //     const row = r.slice(0, colIdx).concat(r.slice(colIdx + 1));
+  //     if (index[r[colIdx]] === undefined) {
+  //       index[r[colIdx]] = [row];
+  //     } else {
+  //       index[r[colIdx]].push(row);
+  //     }
+  //   }
+  //   for (let k of Object.keys(index)) {
+  //     index[k] = index[k].reduce(f, s0);
+  //   }
+  //   return new DF(Object.entries(index), 'rows', [this.colNames[colIdx], 'AggregateFunction']);
+  // }
 
   /**
    * Summaries each column.
