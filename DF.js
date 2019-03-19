@@ -562,22 +562,50 @@ class DF {
    * @return {!DF} data frame
    */
   labelEncode(...colIds) {
+    if (colIds.length === 0 && this.nCols === 1) {
+      colIds = [0];
+    }
     const cols = Array.from(this._cols);
-    for (const colId of colIds) {
-      const colIdx = this._resolveCol(colId);
+    for (const colIdx of colIds.map(id => this._resolveCol(id))) {
       const col = this._cols[colIdx];
       const uniqueVals = new Set(col);
-      const bitsNeeded = Math.ceil(Math.log2(uniqueVals.length));
-      const buf = new ArrayBuffer(Math.max(8, bitsNeeded) * col.length);
+      const bitsNeeded = Math.max(8, Math.ceil(Math.log2(uniqueVals.size)));
+      const bytesNeeded = bitsNeeded / 8;
+      const buf = new ArrayBuffer(bytesNeeded * col.length);
       const newArr = bitsNeeded <= 8 ? new Uint8Array(buf) : bitsNeeded <= 16 ? new Uint16Array(buf) : new Uint32Array(buf);
-      const map = {};
+      const map = new Map();
+      let i = 0;
+      for (const val of uniqueVals) {
+        map.set(val, i);
+        i++;
+      }
       for (let rowIdx = 0; rowIdx < col.length; rowIdx++) {
         const val = col[rowIdx];
-        newArr[rowIdx] = map[val];
+        newArr[rowIdx] = map.get(val);
       }
       cols[colIdx] = newArr;
     }
     return new DF(cols, 'cols', Array.from(this.colNames));
+  }
+
+  /**
+   * One hot encode a column.
+   *
+   * @param {!String|!Number} colId
+   * @return {!DF} one hot encoded table
+   */
+  oneHot(colId) {
+    if (colId === undefined && this.nCols === 1) {
+      colId = 0;
+    }
+    const col = this.col(colId);
+    const k = col.reduce((v1, v2) => Math.max(v1, v2)) + 1;
+    const cols = Array(k).fill(0).map(_ => new Uint8Array(new ArrayBuffer(col.length)));
+    for (let rowIdx = 0; rowIdx < col.length; rowIdx++) {
+      const val = col[rowIdx];
+      cols[val][rowIdx] = 1;
+    }
+    return new DF(cols, 'cols');
   }
 
   /**
