@@ -1,3 +1,6 @@
+/**
+ * TODO KNN with string features d(a, b) == a != b
+ */
 const {Classifier} = require('./index');
 const {majorityVote} = require('../utils');
 const {randNArrEls} = require('../utils/random');
@@ -15,8 +18,8 @@ class KNN extends Classifier {
    * @param {!Number} [maxSample]
    * @param {?Boolean} [doPrune]
    */
-  constructor(data, labels, r = 0.1, k = 3, weights = 'guess', maxSample = 150, doPrune = true) {
-    super(data, labels, r);
+  constructor(data, labels, k = 3, weights = 'guess', maxSample = 150, doPrune = true) {
+    super(data, labels, 0.9);
     this.k = k;
 
     // max number of data points to look at

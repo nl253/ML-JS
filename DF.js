@@ -1,5 +1,5 @@
 const {readCSV} = require('./utils/data');
-const {toTypedArray, transpose: t, shuffle, normalize} = require('./utils');
+const {bag, toTypedArray, transpose: t, shuffle, normalize} = require('./utils');
 // noinspection JSUnusedLocalSymbols
 const {mean, variance, mad, median, nQuart, mode, range, stdev, min, max, sum, product} = require('./utils/stats');
 const fs = require('fs');
@@ -24,8 +24,8 @@ class DF {
       this._cols = [];
       this.colNames = [];
     } else if (data.constructor.name === this.constructor.name) {
-      this._cols = [].concat(data._cols);
-      this.colNames = [].concat(data.colNames);
+      this._cols = Array.from(data._cols);
+      this.colNames = Array.from(data.colNames);
     } else if (data.constructor.name === 'Object' || what === 'dict') {
       this._cols = Object.values(data).map(toTypedArray);
       this.colNames = Object.keys(data);
@@ -39,8 +39,12 @@ class DF {
     Array(this.nCols).fill(0).map((_, idx) => attrNames.add(idx));
 
     // easy access e.g. df.age, df.salary
+    // easy replacement (assignment) of cols e.g. df.age = df2.age;
     for (const name of attrNames) {
-      Object.defineProperty(this, name, { get: function () { return this.col(name); } });
+      Object.defineProperty(this, name, {
+        get: function () { return this.col(name); },
+        set: function(newCol) { this._cols[this._resolveCol(name)] = newCol; }
+      });
     }
 
     function* iterator() {
@@ -104,24 +108,24 @@ class DF {
   }
 
   /**
-   * @param {!String|!Number} nameOrIdx
+   * @param {!String|!Number} colId
    * @return {!Number} column index
    * @private
    */
-  _resolveCol(nameOrIdx) {
-    if (nameOrIdx.constructor.name === 'String') {
-      return this.colNames.findIndex(c => c === nameOrIdx);
-    } else if (nameOrIdx < 0) {
-      return this._resolveCol(this.nCols + nameOrIdx);
-    } else return nameOrIdx;
+  _resolveCol(colId) {
+    if (colId.constructor.name === 'String') {
+      return this.colNames.findIndex(c => c === colId);
+    } else if (colId < 0) {
+      return this._resolveCol(this.nCols + colId);
+    } else return colId;
   }
 
   /**
-   * @param {!String|!Number} nameOrIdx
+   * @param {!String|!Number} colId
    * @return {Array<String>|TypedArray} column
    */
-  col(nameOrIdx) {
-    return this._cols[this._resolveCol(nameOrIdx)];
+  col(colId) {
+    return this._cols[this._resolveCol(colId)];
   }
 
   /**
@@ -146,8 +150,8 @@ class DF {
    * @return {!DF} data frame
    */
   appendDF(other) {
-    const cols = [].concat(this._cols);
-    const colNames = [].concat(this.colNames);
+    const cols = Array.from(this._cols);
+    const colNames = Array.from(this.colNames);
     for (let c = 0; c < cols.length; c++) {
       if (cols[c].constructor.name === 'Array') {
         cols[c] = cols[c].concat(other.col(c));
@@ -168,14 +172,14 @@ class DF {
   }
 
   /**
-   * @param {!Number|!String} col
+   * @param {!Number|!String} colId
    * @param {!Function} f
    * @param {?Function} [f2]
    * @return {!DF} data frame
    */
-  mapCol(col, f, f2 = toTypedArray) {
-    const colIdx = this._resolveCol(col);
-    const cols = [].concat(this._cols);
+  mapCol(colId, f, f2 = toTypedArray) {
+    const colIdx = this._resolveCol(colId);
+    const cols = Array.from(this._cols);
     cols[colIdx] = f2 ? f2(cols[colIdx].map(f)) : cols[colIdx].map(f);
     return new DF(cols, 'cols', this.colNames);
   }
@@ -186,8 +190,8 @@ class DF {
    * @return {!DF} data frame
    */
   appendCol(col, colName = null) {
-    const cols = [].concat(this._cols);
-    const colNames = [].concat(this.colNames);
+    const cols = Array.from(this._cols);
+    const colNames = Array.from(this.colNames);
     cols.push(toTypedArray(col));
     colNames.push(colNames ? colNames : cols.length - 1);
     return new DF(cols, 'cols', colNames);
@@ -213,13 +217,13 @@ class DF {
   }
 
   /**
-   * @param {...<!Number|!String>} columns
+   * @param {...<!Number|!String>} colIds
    * @return {!DF} data frame
    */
-  select(...columns) {
+  select(...colIds) {
     const cols = [];
     const colNames = [];
-    for (const i of Array.from(new Set(columns)).map(c => this._resolveCol(c))) {
+    for (const i of Array.from(new Set(colIds)).map(c => this._resolveCol(c))) {
       cols.push(this._cols[i]);
       colNames.push(this.colNames[i]);
     }
@@ -248,21 +252,21 @@ class DF {
   }
 
   /**
-   * @param {...!String} cols
+   * @param {...!String} colIds
    * @return {!Array<!String>|!String} data type for the column
    */
-  dtype(...cols) {
-    if (cols.length === 1) {
-      const t = this._cols[this._resolveCol(cols[0])].constructor.name;
+  dtype(...colIds) {
+    if (colIds.length === 1) {
+      const t = this._cols[this._resolveCol(colIds[0])].constructor.name;
       if (t === 'Array') {
         return 'Array';
       } else {
         return t.replace('Array', '');
       }
-    } else if (cols.length === 0) {
+    } else if (colIds.length === 0) {
       return this.dtypes;
     } else {
-      return cols.map(c => this.dtype(c));
+      return colIds.map(c => this.dtype(c));
     }
   }
 
@@ -319,16 +323,16 @@ class DF {
    */
   reversed(axis = 'cols') {
     if (axis === 'cols') {
-      const cols = [].concat(this._cols).reverse();
-      const colNames = [].concat(this.colNames).reverse();
+      const cols = Array.from(this._cols).reverse();
+      const colNames = Array.from(this.colNames).reverse();
       return new DF(cols, 'cols', colNames);
     }
     // reverse rows
     const cols = [];
     for (let c = 0; c < this.nCols; c++) {
-      cols.push([].concat(this._cols[c]).reverse());
+      cols.push(Array.from(this._cols[c]).reverse());
     }
-    const colNames = [].concat(this.colNames);
+    const colNames = Array.from(this.colNames);
     return new DF(cols, 'cols', colNames);
   }
 
@@ -381,16 +385,16 @@ class DF {
       }
     }
 
-    return new DF(cols, 'cols', [].concat(this.colNames));
+    return new DF(cols, 'cols', Array.from(this.colNames));
   }
 
   /**
-   * @param {!Number|!String} col
+   * @param {!Number|!String} colId
    * @param {'asc'|'desc'} ord
    * @return {DF}
    */
-  orderBy(col, ord = 'asc') {
-    const colIdx = this._resolveCol(col);
+  orderBy(colId, ord = 'asc') {
+    const colIdx = this._resolveCol(colId);
     let rows;
     if (ord.match(/^\s*asc/i)) {
        rows = Array.from(this.rowIter).sort((r1, r2) => {
@@ -409,11 +413,11 @@ class DF {
   }
 
   /**
-   * @param {...<!String|!Number>} nameOrIdxs
+   * @param {...<!String|!Number>} colIds
    * @return {!DF} data frame
    */
-  drop(...nameOrIdxs) {
-    const toDelete = nameOrIdxs.map(id => this._resolveCol(id));
+  drop(...colIds) {
+    const toDelete = colIds.map(id => this._resolveCol(id));
     const cols = [];
     const colNames = [];
     const neededCols = this.colNames
@@ -427,11 +431,55 @@ class DF {
   }
 
   /**
+   * @param {...<!Number|!String>} params
+   */
+  kBins(...params) {
+    if (params.length === 1) params.push(3)
+    const cols = Array.from(this._cols);
+    for (let i = 1; i < params.length; i+=2) {
+      const colId = params[i - 1];
+      const k = params[i];
+      log.debug(`#bins for ${colId}: ${k}`);
+      const col = cols[this._resolveCol(colId)];
+      const colSorted = Array.from(col).sort((a, b) => a > b ? 1 : a < b ? -1 : 0);
+      const binSize = Math.floor(col.length/k);
+      log.debug(`bin size for ${colId}: ${binSize}`);
+      const bitsPerVal = Math.ceil(Math.log2(k));
+      const buf = new ArrayBuffer(Math.max(8, bitsPerVal) * col.length);
+      const newArr = bitsPerVal <= 8 ? new Uint8Array(buf) : bitsPerVal <= 16 ? new Uint16Array(buf) : new Uint32Array(buf);
+      const bounds = new Float64Array(new ArrayBuffer(8 * k));
+
+      // determine boundaries
+      for (let rowIdx = binSize; rowIdx < col.length; rowIdx+=binSize) {
+        bounds[rowIdx/binSize] = colSorted[rowIdx];
+      }
+
+      // last bin captures all
+      bounds[bounds.length - 1] =  Infinity;
+
+      log.debug(`bounds: [${bounds.join(', ')}]`);
+
+      for (let rowIdx = 0; rowIdx < col.length; rowIdx++) {
+        const val = col[rowIdx];
+        for (let b = 0; b < bounds.length; b++) {
+          if (val <= bounds[b]) {
+            newArr[rowIdx] = b;
+            break;
+          }
+        }
+      }
+      cols[this._resolveCol(colId)] = newArr;
+    }
+
+    return new DF(cols, 'cols', Array.from(this.colNames));
+  }
+
+  /**
    * @param {!Function} f predicate (row => Boolean)
    * @return {!DF} data frame
    */
   filter(f = (_row, _idx) => true) {
-    return new DF(Array.from(this.rowIter).filter(f), 'rows', [].concat(this.colNames));
+    return new DF(Array.from(this.rowIter).filter(f), 'rows', Array.from(this.colNames));
   }
 
   /**
@@ -470,6 +518,20 @@ class DF {
   }
 
   /**
+   * Produce a count table for values of a column.
+   *
+   * @param {!String|!Number} colId
+   * @return {!DF} data frame of counts
+   */
+  count(colId) {
+    const colIdx = this._resolveCol(colId);
+    return new DF(
+      Object.entries(bag(this._cols[colIdx])),
+      'rows',
+      [this.colNames[colIdx], 'count']);
+  }
+
+  /**
    * @param {...<!String|!Number>} colIds
    * @return {!DF} data frame
    */
@@ -479,7 +541,7 @@ class DF {
     }
     const colIdxs = new Set(
       colIds.map(c => this._resolveCol(c))
-            .filter(cIdx => this._cols[cIdx].constructor.name !== 'Array'));
+        .filter(cIdx => this._cols[cIdx].constructor.name !== 'Array'));
     const cols = [];
     const colNames = [];
     for (let cIdx = 0; cIdx < this.nCols; cIdx++) {
@@ -494,6 +556,31 @@ class DF {
   }
 
   /**
+   * Encode string data into integer labels.
+   *
+   * @param {...<!String|!Number>} colIds
+   * @return {!DF} data frame
+   */
+  labelEncode(...colIds) {
+    const cols = Array.from(this._cols);
+    for (const colId of colIds) {
+      const colIdx = this._resolveCol(colId);
+      const col = this._cols[colIdx];
+      const uniqueVals = new Set(col);
+      const bitsNeeded = Math.ceil(Math.log2(uniqueVals.length));
+      const buf = new ArrayBuffer(Math.max(8, bitsNeeded) * col.length);
+      const newArr = bitsNeeded <= 8 ? new Uint8Array(buf) : bitsNeeded <= 16 ? new Uint16Array(buf) : new Uint32Array(buf);
+      const map = {};
+      for (let rowIdx = 0; rowIdx < col.length; rowIdx++) {
+        const val = col[rowIdx];
+        newArr[rowIdx] = map[val];
+      }
+      cols[colIdx] = newArr;
+    }
+    return new DF(cols, 'cols', Array.from(this.colNames));
+  }
+
+  /**
    * Summaries each column.
    *
    * @return {DF} data frame
@@ -501,10 +588,11 @@ class DF {
   get summary() {
     const info = {
       column: [],
-      min: [], max: [], range: [],
+      min: [],
+      max: [],
+      range: [],
       mean: [],
-      stdev: [], variance: [], mad: [],
-      Q1: [], median: [], Q3: [],
+      stdev: [],
       dtype: [],
     };
     for (let c = 0; c < this.nCols; c++) {
@@ -519,18 +607,12 @@ class DF {
       const col = this._cols[c];
       const min = col.reduce((v1, v2) => Math.min(v1, v2));
       const max = col.reduce((v1, v2) => Math.max(v1, v2));
-      const v = variance(col);
       info.column.push(name);
       info.mean.push(mean(col));
       info.dtype.push(dtype);
-      info.variance.push(v);
-      info.stdev.push(Math.sqrt(v));
-      info.Q1.push(nQuart(col, 1, 4));
-      info.median.push(median(col));
-      info.Q3.push(nQuart(col, 3, 4));
+      info.stdev.push(Math.sqrt(variance(col)));
       info.min.push(min);
       info.max.push(max);
-      info.mad.push(mad(col));
       info.range.push(max - min);
     }
     return new DF(info);
@@ -614,7 +696,7 @@ class DF {
    * @return {!DF} shallow copy of the data frame
    */
   copy() {
-    return new DF([].concat(this._cols), 'cols', [].concat(this.colNames));
+    return new DF(Array.from(this._cols), 'cols', Array.from(this.colNames));
   }
 
   /**
@@ -625,7 +707,7 @@ class DF {
     for (let cIdx = 0; cIdx < this.nCols; cIdx++) {
       const col = this._cols[cIdx];
       if (col.constructor.name === 'Array') {
-        newCols.push([].concat(col));
+        newCols.push(Array.from(col));
       } else {
         const newBuf = new ArrayBuffer(col.byteLength);
         const newTypedArr = new col.constructor(newBuf);
@@ -633,7 +715,7 @@ class DF {
         newCols.push(newTypedArr);
       }
     }
-    return new DF(newCols, 'cols', [].concat(this.colNames));
+    return new DF(newCols, 'cols', Array.from(this.colNames));
   }
 
   /**
@@ -644,15 +726,12 @@ class DF {
    */
   static fromCSV(filePath, hasHeader = true, colNames = null) {
     const rows = readCSV(filePath, false); // assume for now it doesn't
-    const maybeHeader = hasHeader ? rows[0] : null;
-    const cols = t(hasHeader ? rows.splice(1) : rows);
-    const isNum = /^(\d+\.?\d*|\d*\.\d+)$/g;
-    for (let c = 0; c < cols.length; c++) {
-      if (!cols[c].find(val => !val.match(isNum))) {
-        cols[c] = cols[c].map(parseFloat)
-      }
+    if (hasHeader) {
+      const header = rows[0];
+      return new DF(rows.splice(1), 'rows', header);
+    } else {
+      return new DF(rows.splice(1), 'rows');
     }
-    return new DF(cols, 'cols', maybeHeader);
   }
 
   /**

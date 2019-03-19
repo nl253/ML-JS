@@ -1,3 +1,5 @@
+const isNumRegex = /^(\d+\.?\d*|\d*\.\d+)$/g;
+
 /**
  * @param {!Array<!Number>} xs
  * @param {!Array<!Number>} ys
@@ -222,11 +224,24 @@ function toTypedMatrix(rows) {
 }
 
 /**
+ * @param {!Array<String>} col
+ * @return {!Boolean}
+ */
+function isNumCol(col) {
+  return !col.find(val => !val.match(isNumRegex));
+}
+
+/**
  * @param {!Array<!Number>|!Array<String>} col
  * @return {!TypedArray|!Array<String>} typed array
  */
 function toTypedArray(col) {
-  if (col.length === 0 || col[0].constructor.name === 'String') return col;
+  if (col.length === 0) return col;
+  else if (col[0].constructor.name === 'String') {
+    if (isNumCol(col)) {
+      col = col.map(parseFloat);
+    } else return col;
+  }
   const isInt = !col.some(v => v !== Math.trunc(v));
   let arrView = Float32Array;
   let bytesPerItem = 4;
