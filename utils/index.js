@@ -160,11 +160,11 @@ function shuffle(a) {
  * @return {*} prediction
  */
 function majorityVote(preds) {
-  const index = {};
-  for (let p = 0; p < preds.length; p++) {
-    index[preds[p]] = (index[preds[p]] || 0) + 1;
+  const index = new Map();
+  for (const predVal of preds) {
+    index.set(predVal, (index.get(predVal) || 0) + 1);
   }
-  return argMax(Object.keys(index), label => index[label]);
+  return argMax(Array.from(index.keys()), label => index.get(label));
 }
 
 /**
@@ -188,12 +188,37 @@ function categorize(data = [], labels = ['low', 'medium', 'high'], nums = [.3, .
 }
 
 /**
- * @param {!Array<!Number>} column
- * @return {!Array<!Number>} normalized column
+ * @param {!Array<!Number>|!TypedArray} column
+ * @return {!Array<!Number>|!TypedArray} normalized column
  */
 function normalize(column) {
   const max = column.reduce((v1, v2) => Math.max(v1, v2));
-  return column.map(v => v / max);
+  if (column.constructor.name === 'Array') {
+    return column.map(v => v / max);
+  }
+  // for typed arrays
+  const buf = new ArrayBuffer(column.length * 4);
+  const newArr = new Float32Array(buf)  ;
+  for (let i = 0; i < column.length; i++) {
+    newArr[i] = column[i] / max;
+  }
+  return newArr;
+}
+
+/**
+ * @param {!Array<Array<*>>} rows
+ * @return {!Array<!TypedArray|!Array<String>>}
+ */
+function toTypedMatrix(rows) {
+  const cols = Array(rows[0].length).fill(0);
+  for (let cIdx = 0; cIdx < rows[0].length; cIdx++) {
+    const c = [];
+    for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
+      c.push(rows[cIdx][rowIdx]);
+    }
+    cols.push(toTypedArray(c));
+  }
+  return cols;
 }
 
 /**
@@ -201,8 +226,7 @@ function normalize(column) {
  * @return {!TypedArray|!Array<String>} typed array
  */
 function toTypedArray(col) {
-  if (col.length === 0) return col;
-  else if (col[0].constructor.name === 'String') return col;
+  if (col.length === 0 || col[0].constructor.name === 'String') return col;
   const isInt = !col.some(v => v !== Math.trunc(v));
   let arrView = Float32Array;
   let bytesPerItem = 4;
@@ -266,5 +290,6 @@ module.exports = {
   entropy,
   categorize,
   toTypedArray,
+  toTypedMatrix,
   minkowskyDist,
 };

@@ -1,7 +1,7 @@
+const argMax = require('../utils').argMax;
 const { Classifier } = require('.');
 
 class NaiveBayes extends Classifier {
-
   /**
    * @param {!DF} data
    * @param {Array<*>} labels
@@ -15,26 +15,20 @@ class NaiveBayes extends Classifier {
    * Learn the model.
    */
   fit() {
-    /**
-     * Counts of unique label values for the predicted attribute.
-     *
-     * @type Object<Number>
-     */
-    this.labelValsPS = {};
-    for (const variant of this.uniqueLabels) {
-      this.labelValsPS[variant] = this.labels.filter(l => l === variant).length / this.labels.length;
+    const labelIdxs = this.labels.map(l => this.uniqueLabels.findIndex(label => label === l));
+
+    this._classPS = {};
+    for (let lIdx = 0; lIdx < this.uniqueLabels.length; lIdx++) {
+      this._classPS[lIdx] = labelIdxs.filter(index => index === lIdx).length / labelIdxs.length;
     }
 
     /** @type Object<Object<Object<Number>>> */
-    this.attrCounts = {};
-    /** @type Object<Object<Object<Number>>> */
-    this.attrPS = {};
-    for (const variant of this.uniqueLabels) {
-      this.attrCounts[variant] = {};
-      this.attrPS[variant] = {};
+    this.counts = Array(this.uniqueLabels.length).fill(0);
+
+    for (let lIdx = 0; lIdx < this.uniqueLabels.length; lIdx++) {
+      this.counts[lIdx] = Array(this.data.nCols).fill(0);
       for (let col = 0; col < this.data.nCols; col++) {
-        this.attrCounts[variant][col] = {};
-        this.attrPS[variant][col] = {};
+        this.counts[lIdx][col] = {};
       }
     }
 
@@ -42,20 +36,23 @@ class NaiveBayes extends Classifier {
 
     for (let row = 0; row < this.dataTrainCount; row++) {
       for (let col = 0; col < this.data.nCols; col++) {
-        this.attrCounts[this.labels[row]][col][data.col(col)[row]] =
-          (this.attrCounts[this.labels[row]][col][data.col(col)[row]] || 0) + 1;
+        const val = data.val(col, row);
+        const lIdx = labelIdxs[row];
+        this.counts[lIdx][col][val] = (this.counts[lIdx][col][val] || 0) + 1;
       }
     }
 
-    for (const variant of this.uniqueLabels) {
+    for (let lIdx = 0; lIdx < this.uniqueLabels.length; lIdx++) {
       for (let col = 0; col < this.data.nCols; col++) {
-        for (const val of Object.keys(this.attrCounts[variant][col])) {
-          this.attrPS[variant][col][val] =
-            this.attrCounts[variant][col][val] /
-            Object.values(this.attrCounts[variant][col]).reduce((left, right) => left + right);
+        const total = Object.values(this.counts[lIdx][col]).reduce((left, right) => left + right);
+        for (const val of Object.keys(this.counts[lIdx][col])) {
+          this.counts[lIdx][col][val] /= total;
         }
       }
     }
+
+    this._ps = this.counts;
+    delete this.counts;
   }
 
   /**
@@ -63,17 +60,21 @@ class NaiveBayes extends Classifier {
    * @returns {*} predicted class name
    */
   predict(row) {
-    return this.uniqueLabels.map(label => [
-        label,
-        row.map((val, idx) => this.attrPS[label][idx][val]
-          ? this.attrPS[label][idx][val]
-          : 0)
-          .reduce((a, b) => a * b, 1) * this.labelValsPS[label]])
-      .reduce(([v1, p1], [v2, p2]) => p1 > p2 ? [v1, p1] : [v2, p2])[0];
+    // for unseen values assume uniform probability distribution where every value in a feature has the same p
+    // so when you see a new value, assume the probability is (1 / (all seen features) + 1)
+    const idx = argMax(
+      this.uniqueLabels.map((_, idx) => idx),
+      lIdx => row
+        .map((val, colIdx) => {
+          return this._ps[lIdx][colIdx][val] || 1/ (this._ps[lIdx][colIdx].length + 1)
+          // return this._ps[lIdx][colIdx][val] || 0;
+        })
+        .reduce((a, b) => a * b, 1) * this._classPS[lIdx]);
+    return this.uniqueLabels[idx];
   }
 
   toString() {
-    return `${this.name} { ${this.labelValsPS !== undefined ? 'acc = ' + this.score + ' ' : ''}#data = ${this.dataTrainCount}, r = ${this.r} }`;
+    return `${this.name} { ${this._classPS === undefined ? '' : 'acc = ' + this.score + ' '}#data = ${this.dataTrainCount}, r = ${this.r} }`;
   }
 }
 

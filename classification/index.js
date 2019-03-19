@@ -1,4 +1,6 @@
+const {gunzipSync, gzip} = require("zlib");
 const log = require('../utils/log');
+const {readFileSync, writeFile} = require("fs");
 
 class Classifier {
   /**
@@ -83,7 +85,7 @@ class Classifier {
    * @return {Number} accuracy score in [0, 1]
    */
   get score() {
-    return this.dataTest.filter((row, idx, _) => this.predict(row) === this.labelsTest[idx]).length / this.dataTestCount;
+    return this.dataTest.filter((row, idx) => this.predict(row) === this.labelsTest[idx]).length / this.dataTestCount;
   }
 
   /**
@@ -103,6 +105,30 @@ class Classifier {
       copy[k] = this[k]
     }
     return copy;
+  }
+
+  /**
+   * @param {!String} filePath
+   * @return {Promise<*>}
+   */
+  save(filePath) {
+    return new Promise((res, rej) => {
+      return gzip(JSON.stringify(this), (err, data) => err
+        ? rej(err)
+        : writeFile(
+          filePath,
+          data,
+          (err2) => err2 ? rej(err2) : res('OK, finished')))
+    });
+  }
+
+  static load(filePath) {
+    const m = JSON.parse(gunzipSync(readFileSync(filePath)));
+    const model = new this.constructor(m.data, m.labels, m.r);
+    for (let k of Object.keys(m)) {
+      model[m] =m[k];
+    }
+    return m;
   }
 
   toString() {

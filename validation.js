@@ -2,10 +2,10 @@ const {mean} = require('./utils');
 
 class CrossValidator {
   /**
-   * @param {Model} model
-   * @param {Array<Array<*>>} data
-   * @param {Array<*>} labels
-   * @param {Number} k
+   * @param {!Classifier} model
+   * @param {!Array<!Array<*>>} data
+   * @param {!Array<*>} labels
+   * @param {!Number} k
    */
   constructor(model, data, labels, k = 10) {
     this.k = k;

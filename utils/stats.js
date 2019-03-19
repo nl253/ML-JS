@@ -78,4 +78,50 @@ function nQuart(xs, n = 2, m = 4) {
   return (v1 + v2) / 2;
 }
 
-module.exports = { mad, mode, range, mean, variance, stdev, nQuart, median };
+/**
+ * @param {!Array<!Number>|!TypedArray} xs
+ * @returns {!Number}
+ */
+function min(xs) {
+  return xs.reduce((v1, v2) => Math.min(v1, v2));
+}
+
+/**
+ * @param {!Array<!Number>|!TypedArray} xs
+ * @returns {!Number}
+ */
+function max(xs) {
+  return xs.reduce((v1, v2) => Math.max(v1, v2));
+}
+
+/**
+ * @param {!Array<!Number>|!TypedArray} xs
+ * @returns {!Number}
+ */
+function sum(xs) {
+  return xs.reduce((v1, v2) => v1 + v2, 0);
+}
+
+/**
+ * @param {!Array<!Number>|!TypedArray} xs
+ * @returns {!Number}
+ */
+function product(xs) {
+  return xs.reduce((v1, v2) => v1 * v2, 1);
+}
+
+/**
+ * @param n
+ * @return {number}
+ */
+function factorial(n) {
+  let acc = 1;
+  while (n > 0) {
+    acc *= n;
+    n--;
+  }
+  return acc;
+}
+nCombinations = (n, k) => factorial(n) / (factorial(n - k) * factorial(k));
+
+module.exports = { mad, mode, range, mean, variance, stdev, nQuart, median, product, sum, min, max, factorial, nCombinations };

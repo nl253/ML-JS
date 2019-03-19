@@ -1,10 +1,10 @@
 const {readCSV} = require('./utils/data');
-const {toTypedArray, transpose: t} = require('./utils');
-const {mean, variance, mad, median, nQuart} = require('./utils/stats');
+const {toTypedArray, transpose: t, shuffle, normalize} = require('./utils');
+// noinspection JSUnusedLocalSymbols
+const {mean, variance, mad, median, nQuart, mode, range, stdev, min, max, sum, product} = require('./utils/stats');
 const fs = require('fs');
 const zlib = require("zlib");
 const {readdirSync, existsSync, writeFileSync, readFileSync} = require('fs');
-const {shuffle} = require('./utils');
 const {dirname, join} = require('path') ;
 const log = require("./utils/log");
 
@@ -25,13 +25,13 @@ class DF {
       this.colNames = [];
     } else if (data.constructor.name === this.constructor.name) {
       this._cols = [].concat(data._cols);
-      this.colNames = [].concat(data.colNames)
+      this.colNames = [].concat(data.colNames);
     } else if (data.constructor.name === 'Object' || what === 'dict') {
       this._cols = Object.values(data).map(toTypedArray);
       this.colNames = Object.keys(data);
     } else {
       this._cols = what === 'rows' ? t(data).map(toTypedArray) : data.map(toTypedArray);
-      this.colNames  = colNames ? colNames : Array(this.nCols).fill(0).map((_, idx) => idx);
+      this.colNames = colNames || Array(this.nCols).fill(0).map((_, idx) => idx);
     }
 
     const attrNames = new Set(this.colNames);
@@ -43,7 +43,7 @@ class DF {
       Object.defineProperty(this, name, { get: function () { return this.col(name); } });
     }
 
-    function* iterator () {
+    function* iterator() {
       for (let r = 0; r < this.length; r++) {
         yield this.row(r);
       }
@@ -52,6 +52,55 @@ class DF {
     // make this.rowIter a getter
     Object.defineProperty(this, 'rowIter', {get: iterator});
     this[Symbol.iterator] = iterator;
+
+    for (const o of ['mean', 'median', 'variance', 'stdev', 'mad', 'range', 'sum', 'product', 'min', 'max']
+      .filter(agg => this[agg] === undefined)
+      .map(agg => ({ aggName: agg, f: eval(agg) }))) {
+      this._registerNumAgg(o.aggName, o.f);
+    }
+    if (this.mode === undefined) {
+      this._registerAgg('mode', eval('mode'));
+    }
+  }
+
+  /**
+   * @param {!String} aggName
+   * @param {!Function} f
+   * @private
+   */
+  _registerAgg(aggName, f) {
+    Object.defineProperty(this, aggName, {get: function () {
+        const names = [];
+        const results = [];
+        for (const cIdx of this.colNames.map(cName => this._resolveCol(cName))) {
+          const col = this._cols[cIdx];
+          const colName = this.colNames[cIdx];
+          names.push(colName);
+          results.push(f(col));
+        }
+        return new DF([names, results], 'cols', ['column', aggName]);
+      }});
+  }
+
+  /**
+   * @param {!String} aggName
+   * @param {!Function} f
+   * @private
+   */
+  _registerNumAgg(aggName, f) {
+    Object.defineProperty(this, aggName, {get: function () {
+        const names = [];
+        const results = [];
+        for (const cIdx of this.colNames.map(cName => this._resolveCol(cName))) {
+          const col = this._cols[cIdx];
+          const colName = this.colNames[cIdx];
+          if (col.constructor.name !== 'Array') {
+            names.push(colName);
+            results.push(f(col));
+          }
+        }
+        return new DF([names, results], 'cols', ['column', aggName]);
+      }});
   }
 
   /**
@@ -121,13 +170,13 @@ class DF {
   /**
    * @param {!Number|!String} col
    * @param {!Function} f
-   * @param {!Function} [f2]
+   * @param {?Function} [f2]
    * @return {!DF} data frame
    */
   mapCol(col, f, f2 = toTypedArray) {
     const colIdx = this._resolveCol(col);
     const cols = [].concat(this._cols);
-    cols[colIdx] = toTypedArray(cols[colIdx].map(f));
+    cols[colIdx] = f2 ? f2(cols[colIdx].map(f)) : cols[colIdx].map(f);
     return new DF(cols, 'cols', this.colNames);
   }
 
@@ -382,11 +431,7 @@ class DF {
    * @return {!DF} data frame
    */
   filter(f = (_row, _idx) => true) {
-    return new DF(
-      Array.from(this.rowIter).filter(f),
-      'rows',
-      this.colNames,
-    );
+    return new DF(Array.from(this.rowIter).filter(f), 'rows', [].concat(this.colNames));
   }
 
   /**
@@ -400,8 +445,14 @@ class DF {
     return new DF(rows, 'rows', this.colNames);
   }
 
-  groupBy(col, f = rows => mean(rows), colName = 'AggregateFunction') {
-    const colIdx = this._resolveCol(col);
+  /**
+   * @param {!String|!Number} colId
+   * @param {!Function} [f]
+   * @param {!String} [colName]
+   * @return {!DF} data frame
+   */
+  groupBy(colId, f = xs => mean(xs), colName = 'AggregateFunction') {
+    const colIdx = this._resolveCol(colId);
     const index = {};
     for (let r of this.rowIter) {
       const val = r[colIdx];
@@ -416,6 +467,30 @@ class DF {
       index[k] = f(index[k]);
     }
     return new DF(Object.entries(index), 'rows', [this.colNames[colIdx], colName]);
+  }
+
+  /**
+   * @param {...<!String|!Number>} colIds
+   * @return {!DF} data frame
+   */
+  normalize(...colIds) {
+    if (colIds.length === 0) {
+      return this.normalize(...this.colNames);
+    }
+    const colIdxs = new Set(
+      colIds.map(c => this._resolveCol(c))
+            .filter(cIdx => this._cols[cIdx].constructor.name !== 'Array'));
+    const cols = [];
+    const colNames = [];
+    for (let cIdx = 0; cIdx < this.nCols; cIdx++) {
+      if (colIdxs.has(cIdx)) {
+        cols.push(normalize(this._cols[cIdx]));
+      } else {
+        cols.push(this._cols[cIdx]);
+      }
+      colNames.push(this.colNames[cIdx]);
+    }
+    return new DF(cols, 'cols', colNames);
   }
 
   /**
@@ -510,17 +585,28 @@ class DF {
    * @param {?Number} [m]
    */
   print(n = null, m = null) {
-    if (n === null) return this.print(Math.min(25, process.stdout.rows - 1));
+    if (n === null) {
+      const lens = [25, process.stdout.rows - 1, this.length];
+      const l = lens.reduce((v1, v2) => Math.min(v1, v2));
+      return this.print(l);
+    }
     else if (m === null) return this.print(0, n);
-    const table = Array.from(this.rowIter)
-      .splice(n, m)
-      .map(row => {
-        const dict = {};
-        for (let v = 0; v < row.length; v++) {
-          dict[this.colNames[v]] = row[v];
-        }
-        return dict;
-      });
+    const rows = [];
+    for (let rowIdx = n; rowIdx < m; rowIdx++) {
+      const r = [];
+      for (let colIdx = 0; colIdx < this.nCols; colIdx++) {
+        r.push(this.val(colIdx, rowIdx));
+      }
+      rows.push(r);
+    }
+    const table = rows.map(row => {
+      const dict = {};
+      for (let v = 0; v < row.length; v++) {
+        const colName = this.colNames[v];
+        dict[colName] = row[v];
+      }
+      return dict;
+    });
     console.table(table);
   }
 
