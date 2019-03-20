@@ -1,4 +1,4 @@
-const { mean } = require('../utils/stats');
+const { mean } = require('../utils');
 const { randInRange } = require('../utils/random');
 const { euclideanDist } = require('../utils');
 

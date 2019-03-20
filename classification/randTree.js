@@ -1,5 +1,6 @@
 const { Classifier } = require('.');
-const { argMax, bag } = require('../utils');
+const { bag } = require('../utils');
+const { argMax } = require('../utils/math');
 const { randInRange, randNArrEls } = require('../utils/random');
 const log = require('../utils/log');
 

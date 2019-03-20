@@ -1,4 +1,4 @@
-const argMax = require('../utils').argMax;
+const { argMax } = require('../utils/math');
 const { Classifier } = require('.');
 
 class NaiveBayes extends Classifier {
@@ -44,7 +44,7 @@ class NaiveBayes extends Classifier {
 
     for (let lIdx = 0; lIdx < this.uniqueLabels.length; lIdx++) {
       for (let col = 0; col < this.data.nCols; col++) {
-        const total = Object.values(this.counts[lIdx][col]).reduce((left, right) => left + right);
+        const total = Object.values(this.counts[lIdx][col]).reduce((left, right) => left + right, 0);
         for (const val of Object.keys(this.counts[lIdx][col])) {
           this.counts[lIdx][col][val] /= total;
         }
@@ -65,10 +65,7 @@ class NaiveBayes extends Classifier {
     const idx = argMax(
       this.uniqueLabels.map((_, idx) => idx),
       lIdx => row
-        .map((val, colIdx) => {
-          return this._ps[lIdx][colIdx][val] || 1/ (this._ps[lIdx][colIdx].length + 1)
-          // return this._ps[lIdx][colIdx][val] || 0;
-        })
+        .map((val, colIdx) => this._ps[lIdx][colIdx][val] || 1 / (this._ps[lIdx][colIdx].length + 1))
         .reduce((a, b) => a * b, 1) * this._classPS[lIdx]);
     return this.uniqueLabels[idx];
   }

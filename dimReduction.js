@@ -1,5 +1,5 @@
 const {transpose: t} = require('./utils');
-const {variance} = require('./utils/stats');
+const {variance} = require('./utils');
 
 function varRemove(xs_, minVar = 1) {
   const xs = [].concat(xs_);

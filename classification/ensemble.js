@@ -1,4 +1,4 @@
-const {mean} = require('../utils/stats');
+const {mean} = require('../utils');
 const {shuffle, majorityVote} = require('../utils');
 const log = require('../utils/log');
 const DF = require('../DF');

@@ -1,3 +1,4 @@
+const { sum } = require('./math');
 const { bag } = require('.');
 
 /**
@@ -5,7 +6,7 @@ const { bag } = require('.');
  * @return {!Number}
  */
 function mean(nums) {
-  return nums.reduce((x1, x2) => x1 + x2) / nums.length;
+  return sum(nums) / nums.length;
 }
 
 /**
@@ -14,7 +15,7 @@ function mean(nums) {
  */
 function variance(nums) {
   const mu = mean(nums);
-  return nums.map(x => (x - mu) ** 2).reduce((x1, x2) => x1 + x2) / nums.length;
+  return sum(nums.map(x => (x - mu) ** 2)) / nums.length;
 }
 
 /**
@@ -23,14 +24,6 @@ function variance(nums) {
  */
 function stdev(nums) {
   return Math.sqrt(variance(nums));
-}
-
-/**
- * @param {!Array<Number>} xs
- * @returns {{min: number, max: number}}
- */
-function range(xs) {
-  return xs.reduce((x1, x2) => Math.max(x1, x2)) - xs.reduce((x1, x2) => Math.min(x1, x2));
 }
 
 /**
@@ -95,33 +88,22 @@ function max(xs) {
 }
 
 /**
- * @param {!Array<!Number>|!TypedArray} xs
- * @returns {!Number}
+ * @param {!Array<Number>} xs
+ * @returns {{min: number, max: number}}
  */
-function sum(xs) {
-  return xs.reduce((v1, v2) => v1 + v2, 0);
+function range(xs) {
+  return max(xs) - min(xs);
 }
 
-/**
- * @param {!Array<!Number>|!TypedArray} xs
- * @returns {!Number}
- */
-function product(xs) {
-  return xs.reduce((v1, v2) => v1 * v2, 1);
-}
-
-/**
- * @param n
- * @return {number}
- */
-function factorial(n) {
-  let acc = 1;
-  while (n > 0) {
-    acc *= n;
-    n--;
-  }
-  return acc;
-}
-nCombinations = (n, k) => factorial(n) / (factorial(n - k) * factorial(k));
-
-module.exports = { mad, mode, range, mean, variance, stdev, nQuart, median, product, sum, min, max, factorial, nCombinations };
+module.exports = {
+  mad,
+  max,
+  mean,
+  median,
+  min,
+  mode,
+  nQuart,
+  stdev,
+  range,
+  variance,
+};

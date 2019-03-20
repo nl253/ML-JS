@@ -1,3 +1,5 @@
+const {swap} = require('./arrays');
+
 /**
  * @param {!Function} f
  * @param {!Function} fPrime
@@ -31,17 +33,6 @@ function* combinations(xs, n) {
       yield prefix.concat(subCombo);
     }
   }
-}
-
-/**
- * @param {!Array<*>} xs
- * @param {!Number} i
- * @param {!Number} j
- */
-function swap(xs, i, j) {
-  const save = xs[i];
-  xs[i] = xs[j];
-  xs[j] = save;
 }
 
 /**

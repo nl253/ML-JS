@@ -1,12 +1,27 @@
-const {readCSV} = require('./utils/data');
-const {bag, toTypedArray, transpose: t, shuffle, normalize} = require('./utils');
 // noinspection JSUnusedLocalSymbols
-const {mean, variance, mad, median, nQuart, mode, range, stdev, min, max, sum, product} = require('./utils/stats');
-const fs = require('fs');
-const zlib = require("zlib");
-const {readdirSync, existsSync, writeFileSync, readFileSync} = require('fs');
-const {dirname, join} = require('path') ;
+const {
+  mad,
+  max,
+  mean,
+  range,
+  median,
+  min,
+  mode,
+  nQuart,
+  stdev,
+  variance,
+} = require('./utils/stats');
+// noinspection JSUnusedLocalSymbols
+const { sum, product } = require('./utils/math');
+const { normalize } = require('./utils/preprocessing');
+const { readCSV } = require('./utils/load');
+const { toTypedArray, transpose: t, shuffle, getTypedArray } = require('./utils/arrays');
+const { mkdirSync } = require('fs');
+const { gunzipSync, gzipSync } = require("zlib");
+const { readdirSync, existsSync, writeFileSync, readFileSync } = require('fs');
+const { dirname, join } = require('path') ;
 const log = require("./utils/log");
+
 
 class DF {
   /**
@@ -27,10 +42,10 @@ class DF {
       this._cols = Array.from(data._cols);
       this.colNames = Array.from(data.colNames);
     } else if (data.constructor.name === 'Object' || what === 'dict') {
-      this._cols = Object.values(data).map(toTypedArray);
+      this._cols = Object.values(data).map(c => toTypedArray(c));
       this.colNames = Object.keys(data);
     } else {
-      this._cols = what === 'rows' ? t(data).map(toTypedArray) : data.map(toTypedArray);
+      this._cols = what === 'rows' ? t(data).map(c => toTypedArray(c)) : data.map(c => toTypedArray(c));
       this.colNames = colNames || Array(this.nCols).fill(0).map((_, idx) => idx);
     }
 
@@ -155,18 +170,21 @@ class DF {
     for (let c = 0; c < cols.length; c++) {
       if (cols[c].constructor.name === 'Array') {
         cols[c] = cols[c].concat(other.col(c));
-      } else {
-        const buf = new ArrayBuffer(cols[c].buffer.byteLength + other.col(c).buffer.byteLength);
-        let view;
-        if (other._cols[c].BYTES_PER_ELEMENT >= cols[c].BYTES_PER_ELEMENT) {
-          view = new (other.col(c).constructor)(buf);
-        } else {
-          view = new (cols[c].constructor)(buf);
-        }
-        view.set(cols[c]);
-        view.set(other.col(c), cols[c].length);
-        cols[c] = view;
+        continue;
       }
+      const otherCol = other._cols[c];
+      const thisCol = cols[c];
+      const newLen = thisCol.length + otherCol.length;
+      let dtype;
+      if (otherCol.BYTES_PER_ELEMENT >= thisCol.BYTES_PER_ELEMENT) {
+        dtype = otherCol.constructor.name.replace('Array', '');
+      } else {
+        dtype = thisCol.constructor.name.replace('Array', '');
+      }
+      const newArr = getTypedArray(dtype, newLen);
+      newArr.set(thisCol);
+      newArr.set(otherCol, thisCol.length);
+      cols[c] = newArr;
     }
     return new DF(cols, 'cols', colNames);
   }
@@ -234,7 +252,7 @@ class DF {
    * @return {!Number} number of rows
    */
   get length() {
-    return this._cols[0].length;
+    return this._cols[0] !== undefined && this._cols[0].length;
   }
 
   /**
@@ -308,14 +326,14 @@ class DF {
    * @return {!DF} data frame
    */
   get head() {
-    return this.slice(0, 25);
+    return this.slice(0, 10);
   }
 
   /**
    * @return {!DF} data frame
    */
   get tail() {
-    return this.slice(this.length - 25, this.length);
+    return this.slice(this.length - 10, this.length);
   }
 
   /**
@@ -431,23 +449,29 @@ class DF {
   }
 
   /**
-   * @param {...<!Number|!String>} params
+   * @param {...<!Number|!String>} [params]
    */
   kBins(...params) {
-    if (params.length === 1) params.push(3)
+    if (params.length === 0) {
+      // default to 6 bins
+      params = [6];
+    }
+    if (params.length === 1) {
+      // if 1 param assume it's the bin size
+      // and k-bin all columns
+      const k = params[0];
+      params = this.colNames.map((_, idx) => [idx, k]).reduce((a1, a2) => a1.concat(a2), []);
+    }
     const cols = Array.from(this._cols);
     for (let i = 1; i < params.length; i+=2) {
       const colId = params[i - 1];
       const k = params[i];
-      log.debug(`#bins for ${colId}: ${k}`);
       const col = cols[this._resolveCol(colId)];
       const colSorted = Array.from(col).sort((a, b) => a > b ? 1 : a < b ? -1 : 0);
       const binSize = Math.floor(col.length/k);
-      log.debug(`bin size for ${colId}: ${binSize}`);
       const bitsPerVal = Math.ceil(Math.log2(k));
-      const buf = new ArrayBuffer(Math.max(8, bitsPerVal) * col.length);
-      const newArr = bitsPerVal <= 8 ? new Uint8Array(buf) : bitsPerVal <= 16 ? new Uint16Array(buf) : new Uint32Array(buf);
-      const bounds = new Float64Array(new ArrayBuffer(8 * k));
+      const newArr = getTypedArray( bitsPerVal <= 8 ? 'Uint8' : bitsPerVal <= 16 ? 'Uint16' : 'Uint32', col.length);
+      const bounds = getTypedArray('Float64', k);
 
       // determine boundaries
       for (let rowIdx = binSize; rowIdx < col.length; rowIdx+=binSize) {
@@ -537,16 +561,19 @@ class DF {
    */
   normalize(...colIds) {
     if (colIds.length === 0) {
-      return this.normalize(...this.colNames);
+      colIds = this.colNames;
     }
     const colIdxs = new Set(
       colIds.map(c => this._resolveCol(c))
-        .filter(cIdx => this._cols[cIdx].constructor.name !== 'Array'));
+            .filter(cIdx => this._cols[cIdx].constructor.name !== 'Array'));
     const cols = [];
     const colNames = [];
     for (let cIdx = 0; cIdx < this.nCols; cIdx++) {
       if (colIdxs.has(cIdx)) {
-        cols.push(normalize(this._cols[cIdx]));
+        const unNormCol = this._cols[cIdx];
+        const normalizedCol = normalize(unNormCol);
+        Object.defineProperty(normalizedCol, 'unNormalized', {get: function () {return unNormCol;}});
+        cols.push(normalizedCol);
       } else {
         cols.push(this._cols[cIdx]);
       }
@@ -570,9 +597,7 @@ class DF {
       const col = this._cols[colIdx];
       const uniqueVals = new Set(col);
       const bitsNeeded = Math.max(8, Math.ceil(Math.log2(uniqueVals.size)));
-      const bytesNeeded = bitsNeeded / 8;
-      const buf = new ArrayBuffer(bytesNeeded * col.length);
-      const newArr = bitsNeeded <= 8 ? new Uint8Array(buf) : bitsNeeded <= 16 ? new Uint16Array(buf) : new Uint32Array(buf);
+      const newArr = getTypedArray(bitsNeeded <= 8 ? 'Uint8' : bitsNeeded <= 16 ? 'Uint16' : 'Uint32', col.length);
       const map = new Map();
       let i = 0;
       for (const val of uniqueVals) {
@@ -600,7 +625,7 @@ class DF {
     }
     const col = this.col(colId);
     const k = col.reduce((v1, v2) => Math.max(v1, v2)) + 1;
-    const cols = Array(k).fill(0).map(_ => new Uint8Array(new ArrayBuffer(col.length)));
+    const cols = Array(k).fill(0).map(_ => getTypedArray('Uint8', col.length));
     for (let rowIdx = 0; rowIdx < col.length; rowIdx++) {
       const val = col[rowIdx];
       cols[val][rowIdx] = 1;
@@ -685,9 +710,9 @@ class DF {
     }
     const parent = dirname(fileName);
     if (!existsSync(parent)) {
-      fs.mkdirSync(parent);
+      mkdirSync(parent);
     }
-    return writeFileSync(fileName, zlib.gzipSync(this.toJSON()), { flag: 'w' });
+    return writeFileSync(fileName, gzipSync(this.toJSON()), { flag: 'w' });
   }
 
   /**
@@ -737,8 +762,7 @@ class DF {
       if (col.constructor.name === 'Array') {
         newCols.push(Array.from(col));
       } else {
-        const newBuf = new ArrayBuffer(col.byteLength);
-        const newTypedArr = new col.constructor(newBuf);
+        const newTypedArr = getTypedArray(col.constructor.name.replace('Array', ''), col.length);
         newTypedArr.set(col);
         newCols.push(newTypedArr);
       }
@@ -770,7 +794,7 @@ class DF {
     if (!existsSync(filePath) && existsSync(`${filePath}.df`)) {
       return DF.fromFile(`${filePath}.df`);
     }
-    const json =  JSON.parse(zlib.gunzipSync(readFileSync(filePath)).toString('utf-8'));
+    const json =  JSON.parse(gunzipSync(readFileSync(filePath)).toString('utf-8'));
     const colNames = Object.keys(json);
     const isIndexed = colNames.map(nm => !!nm.match(/^\d+$/)).reduce((l, r) => l && r, true);
     return new DF(

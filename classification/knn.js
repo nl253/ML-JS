@@ -1,96 +1,83 @@
 /**
  * TODO KNN with string features d(a, b) == a != b
+ * TODO r cannot be 1.0
  */
-const {Classifier} = require('./index');
-const {majorityVote} = require('../utils');
-const {randNArrEls} = require('../utils/random');
-const log = require('../utils/log');
-const GA = require("../search/genetic");
+const { getTypedArray } = require('../utils/arrays');
+const { argMax } = require('../utils/math');
+const { Classifier } = require('./index');
+const { majorityVote } = require('../utils');
+const { randNArrEls } = require('../utils/random');
 
 
 class KNN extends Classifier {
   /**
    * @param {!DF} data
    * @param {Array<*>} labels
-   * @param {!Number} [r]
    * @param {!Number} k
-   * @param {'guess'|!Array<!Number>} [weights]
-   * @param {!Number} [maxSample]
-   * @param {?Boolean} [doPrune]
+   * @param {?Array<!Number>|?TypedArray} [weights]
    */
-  constructor(data, labels, k = 3, weights = 'guess', maxSample = 150, doPrune = true) {
-    super(data, labels, 0.9);
+  constructor(data, labels, k = 3, weights = null) {
+    // KNN does not need any training data but some parts of the api require non-empty training data frame
+    // so include exactly 1 example in the data frame
+    super(data, labels, (labels.length - 1)/labels.length);
+
+    // number of neighbours
     this.k = k;
 
     // max number of data points to look at
-    this.maxSample = Math.min(this.dataTrainCount, maxSample);
+    this._maxSample = Math.min(this.data.length, this.uniqueLabels.length * 50);
 
-    // initialise reprs to the indexes of the first maxSample candidates
-    this.reprs = Array(this.maxSample).fill(1).map((_, idx) => idx);
+    // initialise reprs to the indexes of the first _maxSample candidates
+    this.reprs = Array(this._maxSample).fill(1).map((_, idx) => idx);
 
     // default to weight of 1 for all dimensions
     this.weights = new Float64Array(new ArrayBuffer(this.data.nCols * 8)).fill(1);
-
-    if (weights === 'guess') {
-      log.debug(`guessing weights ... (this might take a while)`);
-      this.weights = this._guessWeights();
-      log.debug(`guessed weights: [${this.weights.join(', ')}]`);
-    } else if (weights !== null) {
-      this.weights = weights;
-    }
-
-    if (doPrune) this.reprs = this._chooseReprs();
   }
 
-  _guessWeights() {
-    const goodWeights = [1.65, 1, 1.85, 5, 0.75, 2, 1.25, 4.25];
-    const searchAttrsNo = Math.min(this.data.nCols, 10);
-    /**
-     * @param {!Number} n
-     * @return {!Float64Array} weights
-     */
-    const decode = (n) => {
-      const a = new Float64Array(new ArrayBuffer(8 * this.data.nCols)).fill(1);
-      for (let i = 0; i < searchAttrsNo; i++) {
-        // 3 bits for each are enough to encode values from 0..8 (hence array of 8 good weights)
-        a[i] = goodWeights[n & 0b111];
-        n >>= 3;
-      }
-      return a;
-    };
-    /**
-     * @param {!Number} n
-     * @return {!Number} fitness
-     */
-    const fitness = n => {
-      this.weights = decode(n);
-      return this.score;
-    };
-    const ga = new GA(fitness, 15, 100000, 300);
-    return decode(ga.search()[0]);
-  }
-
-  _chooseReprs(nRuns = 200) {
+  _chooseReprs(nRuns) {
     const pops = [];
 
     for (let i = 0; i < nRuns; i++) {
-      const pop = randNArrEls(Array(this.dataTrainCount).fill(0).map((_, idx) => idx), this.maxSample);
+      const pop = randNArrEls(Array(this.data.length).fill(0).map((_, idx) => idx), this._maxSample);
       this.reprs = pop;
       const score = this.score;
       pops.push({ score, pop })
     }
 
-    const sortF = ({score: s1}, {score: s2}) => {
-      if (s1 > s2) return -1;
-      else if (s1 < s2) return 1;
-      else return 0;
-    };
-
+    const sortF = ({score: s1}, {score: s2}) => s1 > s2 ? -1 : s1 < s2 ? 1 : 0;
     return pops.sort(sortF)[0].pop;
   }
 
-  fit() {
-    log.warn(`fitting not needed for ${this.name}`);
+  /**
+   * Find weights that maximise score.
+   *
+   * @return {!Float64Array}
+   * @private
+   */
+  _guessWeights(nRuns, delta = 0.25) {
+    const nLoops = Math.ceil(nRuns / this.data.nCols);
+    for (let colIdx = 0; colIdx < this.data.nCols; colIdx++) {
+      const scores = getTypedArray('Float64', nLoops);
+      for (let i = 0; i < nLoops; i++) {
+        this.weights[colIdx] = delta * (i + 1);
+        scores[i] = this.score;
+        if (scores.length >= 2 && scores[scores.length - 1] > scores[scores.length - 2]) {
+          break;
+        }
+      }
+      const bestScoreIdx = argMax(scores.map((_, idx) => idx), idx => scores[idx]);
+      this.weights[colIdx] = delta * (bestScoreIdx + 1)
+    }
+  }
+
+  fit(nRuns = 30, minChange = 0.1) {
+    let s = this.score;
+    let improvement;
+    do {
+      this._guessWeights(nRuns);
+      this.reprs = this._chooseReprs(nRuns);
+      improvement = s - this.score;
+    } while (improvement >= minChange);
   }
 
   /**
@@ -98,25 +85,19 @@ class KNN extends Classifier {
    * @return {*} prediction
    */
   predict(x) {
-    const data = this.dataTrain;
+    const data = this.data;
     let ds = [];
-
-    // const sample = this.
 
     for (const rowIdx of this.reprs) {
       let d = 0;
       for (let colIdx = 0; colIdx < data.nCols; colIdx++) {
         d += ((data.val(colIdx, rowIdx) - x[colIdx])**2) * this.weights[colIdx];
       }
-      ds.push({ d: Math.sqrt(d), l: this.labelsTrain[rowIdx] });
+      ds.push({ d: Math.sqrt(d), l: this.labelsTest[rowIdx] });
     }
 
     // sort ASC
-    ds = ds.sort(({d: d1}, {d: d2}) => {
-      if (d1 > d2) return 1;
-      else if (d1 < d2) return -1;
-      else return 0;
-    });
+    ds = ds.sort(({d: d1}, {d: d2}) => d1 > d2 ? 1 : d1 < d2 ? -1 : 0);
 
     return majorityVote(ds.slice(0, this.k).map(o => o.l));
   }
