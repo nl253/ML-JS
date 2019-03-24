@@ -1,6 +1,6 @@
-const {Classifier} = require('.');
-const Tree = require('./randTree');
-const Ensemble = require('./ensemble');
+const { Classifier } = require('.');
+const RT = require('./extraTree');
+const { majorityVote } = require('../utils');
 
 class RandForest extends Classifier {
   /**
@@ -8,37 +8,30 @@ class RandForest extends Classifier {
    * @param {!Array<*>} labels
    * @param {!Number} [r]
    * @param {!Number} [nTrees]
+   * @param {!Number} [featureRatio]
    */
-  constructor(data, labels, r = 0.1, nTrees = 20) {
+  constructor(data, labels, r = 0.1, nTrees = 20, featureRatio = 0.3) {
     super(data, labels);
     this.nTrees = nTrees;
     this.r = r;
+    this.featureRatio = featureRatio;
   }
 
   /**
    * Learn the models.
    */
   fit() {
-    this.ensemble = new Ensemble(
-      this.data,
-      this.labels,
-      this.r,
-      Array(this.nTrees).fill(0).map(_ => this._randTree));
-    this.ensemble.fit();
-  }
-
-  /**
-   * @return {function(*=, *=): RandTree} tree supplier
-   */
-  get _randTree() {
-    return (data, labels) => new Tree(data, labels, this.r);
-  }
-
-  /**
-   * @return {!Number} score
-   */
-  get score() {
-    return this.ensemble.score;
+    this.trees = [];
+    for (let i = 0; i < this.nTrees; i++) {
+      const withLabels = this.dataTrain
+        .appendCol(this.labelsTrain)
+        .sample(1 / this.nTrees);
+      const xs = withLabels.sliceCols(0, -1);
+      const ys = withLabels.col(-1);
+      const t = new RT(xs, ys);
+      t.fit();
+      this.trees.push(t);
+    }
   }
 
   /**
@@ -46,7 +39,7 @@ class RandForest extends Classifier {
    * @return {*} prediction
    */
   predict(x) {
-    return this.ensemble.predict(x);
+    return majorityVote(this.trees.map(t => t.predict(x)));
   }
 
   toString() {

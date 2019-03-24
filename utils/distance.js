@@ -33,4 +33,3 @@ module.exports = {
   euclideanDist: (xs, ys) => minkowskyDist(xs, ys, 2),
 };
 
-

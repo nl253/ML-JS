@@ -1,4 +1,8 @@
 const log = require('../utils/log');
+const arange = require('../utils').arange;
+const mean = require('../utils').mean;
+const { toTypedArray } = require('../utils');
+
 
 class Classifier {
   /**
@@ -7,66 +11,68 @@ class Classifier {
    * @param {Number} [r]
    */
   constructor(data, labels, r = 0.1) {
-    this.r = r;
     this.data = data;
     this.labels = labels;
-    this.uniqueLabels = Array.from(new Set(labels));
+    this.uniqueLabels = toTypedArray(Array.from(new Set(labels)));
+    this.r = r;
+    this.cv = Math.floor(1 / this.r);
+    this.fold = 1;
   }
 
   /**
-   * @return {!Number} number of rows in training data
+   * @returns {!Number} number of rows in training data
    */
   get dataTrainCount() {
     return this.data.length - this.dataTestCount;
   }
 
   /**
-   * @return {!Number} number of rows in testing data
+   * @returns {!Number} number of rows in testing data
    */
   get dataTestCount() {
     return Math.floor(this.data.length * this.r);
   }
 
   /**
-   * @return {!Array<*>} labels for the test data
+   * @returns {!Array<*>|!TypedArray} labels for the test data
    */
   get labelsTest() {
-    return this.labels.slice(0, this.dataTestCount);
+    return this.labels.slice(
+      this.dataTestCount * (this.fold - 1),
+      this.dataTestCount * (this.fold),
+    );
   }
 
   /**
-   * @return {!Array<*>} labels for the training data
+   * @returns {!Array<*>} labels for the training data
    */
   get labelsTrain() {
-    return this.labels.slice(this.dataTestCount);
+    return this.labels
+      .slice(0, (this.fold - 1) * this.dataTestCount)
+      .concat(this.labels.slice(this.fold * this.dataTestCount, this.labels.length));
   }
 
   /**
-   * @return {!DF} testing data
+   * @returns {!DF} testing data
    */
   get dataTest() {
-    if (this._dataTestCache !== undefined) {
-      return this._dataTestCache;
-    }
-    const df = this.data.slice(0, this.dataTestCount);
-    this._dataTestCache = df;
-    return df
+    return this.data.slice(
+      this.dataTestCount * (this.fold - 1),
+      this.dataTestCount * (this.fold),
+    );
   }
 
   /**
-   * @return {!DF} training data
+   * @returns {!DF} training data
    */
   get dataTrain() {
-    if (this._dataTrainCache !== undefined) {
-      return this._dataTrainCache;
-    }
-    const df = this.data.slice(this.dataTestCount, this.data.length);
-    this._dataTrainCache = df;
-    return df;
+    return this.data
+      .slice(0, (this.fold - 1) * this.dataTestCount)
+      .concat(this.data.slice(this.fold * this.dataTestCount, this.data.length));
   }
 
   /**
-   * @return {!String} name
+   * @returns {!String} name
    */
   get name() {
     return this.constructor.name;
@@ -80,40 +86,49 @@ class Classifier {
   }
 
   /**
-   * @return {Number} accuracy score in [0, 1]
+   * @return {!Number}
+   */
+  get scoreCV() {
+    const folds = arange(this.cv - 1).cast('Float64');
+    console.log(folds);
+    return folds.map(idx => {
+      const m = new this.constructor(this.data, this.labels, this.r);
+      m.fold = idx + 1;
+      console.log(`#data = ${this.data.length}, #train = ${m.dataTrainCount}, #test = ${m.dataTestCount}, ${m.fold}/${m.cv}`);
+      const { score } = m;
+      return score;
+    }).mean;
+  }
+
+  /**
+   * @returns {Number} accuracy score in [0, 1]
    */
   get score() {
-    return this.dataTest.filter((row, idx) => {
-      const p = this.predict(row);
-      const a = this.labelsTest[idx];
-      // console.log(p);
-      // console.log(a);
-      return p === a;
-    }).length / this.dataTestCount;
+    return this.dataTest.filter((row, idx) => this.predict(row) === this.labelsTest[idx]).length / this.dataTestCount;
   }
 
   /**
    * @param {Array<*>} row
-   * @return {*} prediction
+   * @returns {*} prediction
    */
   predict(row) {
     return log.warn('Model.predict(row) needs to be overridden');
   }
 
   /**
-   * @return {!Classifier} clone of the classifier
+   * @returns {!Classifier} clone of the classifier
    */
   clone(copyData = false) {
     const copy = new this.constructor(copyData ? this.data.clone() : this.data, copyData ? [].concat(this.labels) : this.labels, this.r);
-    for (let k of Object.keys(this)) {
-      copy[k] = this[k]
+    for (const k of Object.keys(this)) {
+      copy[k] = this[k];
     }
     return copy;
   }
 
   toString() {
-    return `${this.name} { #features = ${this.data.nCols}, ${this.uniqueLabels.length <= 5 ? 'uniqueLabels = [' + this.uniqueLabels.join(', ') + ']' : '#uniqueLabels = ' + this.uniqueLabels.length  }, #dataTrain = ${this.dataTrainCount}, #dataTest = ${this.dataTestCount}, r = ${this.r} }`;
+    return `${this.name} { #features = ${this.data.nCols}, ${this.uniqueLabels.length <= 5 ? `uniqueLabels = [${this.uniqueLabels.join(', ')}]` : `#uniqueLabels = ${this.uniqueLabels.length}`}, #dataTrain = ${this.dataTrainCount}, #dataTest = ${this.dataTestCount}, r = ${this.r} }`;
   }
 }
 
-module.exports = {Classifier};
+module.exports = { Classifier };

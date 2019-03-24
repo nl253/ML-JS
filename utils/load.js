@@ -2,7 +2,7 @@ const { readFileSync } = require('fs');
 const parseCSV = require('csv-parse/lib/sync');
 
 /**
- * @param {!string} filePath
+ * @param {!String} filePath
  * @returns {JSON}
  */
 function readJSON(filePath) {

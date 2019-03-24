@@ -1,4 +1,5 @@
-const { randInRange, randCandidate, crossOver, mutate } = require('../utils/random');
+const { randInRange, randCandidate } = require('../utils');
+const { crossOver, mutate } = require('../utils/bits');
 const log = require('../utils/log');
 
 class GeneticAlgo {
@@ -39,15 +40,15 @@ class GeneticAlgo {
    * @param {!Number} [priorityP] probability of prioritising top candidates for selection for operators
    */
   constructor(f = n => n,
-              popSize = 100,
-              maxRounds = 10000,
-              maxSec = 30,
-              mutationP = 0.15,
-              popGrowthFactor = 3,
-              maxRoundsCheck = 5,
-              minDiff = 0.5,
-              priorityRatio = 0.5,
-              priorityP = 0.15) {
+    popSize = 100,
+    maxRounds = 10000,
+    maxSec = 30,
+    mutationP = 0.15,
+    popGrowthFactor = 3,
+    maxRoundsCheck = 5,
+    minDiff = 0.5,
+    priorityRatio = 0.5,
+    priorityP = 0.15) {
     this.f = f;
     this.popSize = popSize;
     this.minDiff = minDiff;
@@ -67,19 +68,19 @@ class GeneticAlgo {
   /**
    * The most fit candidates are first in the candidates array. Sometimes the algorithm will priorities the first candidates for cross-over / mutation.
    *
-   * @return {!Number} candidate
+   * @returns {!Number} candidate
    */
   get randCandidate() {
     return this.candidates[
       Math.trunc(randInRange(
         Math.random() >= this.priorityP
           ? this.popSize * this.priorityRatio
-          : this.popSize
+          : this.popSize,
       ))];
   }
 
   /**
-   * @return {!Number} number of rounds completed
+   * @returns {!Number} number of rounds completed
    */
   get roundsDone() {
     return this.maxRounds - this.roundsLeft;
@@ -89,7 +90,7 @@ class GeneticAlgo {
    * Check if there was sufficient difference in overall population fitness.
    * Prevents the algorithm from getting stuck & making no progress.
    *
-   * @return {!Number} difference in the last iterations
+   * @returns {!Number} difference in the last iterations
    */
   get diffScore() {
     return this.scores
@@ -103,7 +104,7 @@ class GeneticAlgo {
    */
   search() {
     this.startTime = Date.now();
-    Object.defineProperty(this, 'elapsedSec', { get: function() { return (Date.now() - this.startTime) / 1000; } });
+    Object.defineProperty(this, 'elapsedSec', { get() { return (Date.now() - this.startTime) / 1000; } });
 
     while (true) {
       // check for timeout
@@ -130,8 +131,10 @@ class GeneticAlgo {
 
       const cache = {};
 
-      // take most fit
-      // sort DESCENDING
+      /*
+       * take most fit
+       * sort DESCENDING
+       */
       this.candidates = this.candidates.sort((a, b) => {
         const f1 = this.f(a);
         const f2 = this.f(b);
@@ -147,11 +150,10 @@ class GeneticAlgo {
         this.scores[i] = this.scores[i + 1];
       }
 
-      this.scores[this.scores.length - 1] =
-        this.candidates
-          .slice(0, this.popSize)     // select top candidates
-          .map(c => cache[c])     // fetch computed fitness
-          .reduce((s1, s2) => s1 + s2, 0); // sum
+      this.scores[this.scores.length - 1] = this.candidates
+        .slice(0, this.popSize) // select top candidates
+        .map(c => cache[c]) // fetch computed fitness
+        .reduce((s1, s2) => s1 + s2, 0); // sum
     }
     this.endTime = Date.now();
     this.timeTaken = this.endTime - this.startTime;
@@ -161,7 +163,7 @@ class GeneticAlgo {
   toString() {
     // if completed
     if (this.timeTaken) {
-      return `GeneticAlgo { took = ${this.timeTaken}, roundDone = ${this.roundsDone}, #pop = ${this.candidates.length/this.popSize} }`;
+      return `GeneticAlgo { took = ${this.timeTaken}, roundDone = ${this.roundsDone}, #pop = ${this.candidates.length / this.popSize} }`;
     } else {
       return `GeneticAlgo { #pop = ${this.popSize}, growth = ${this.candidates.length / this.popSize}, mutationP = ${this.mutationP}, timeLimit: ${this.maxSec} }`;
     }

@@ -1,4 +1,4 @@
-const {randInRange} = require('./random');
+const { randInRange } = require('.');
 
 /**
  * @param {!Number} x
@@ -9,7 +9,7 @@ const {randInRange} = require('./random');
 function crossOver(x, y, maxLen = 32) {
   const idx = Math.trunc(randInRange(1, maxLen));
   const yShift = maxLen - idx;
-  return (((x << idx) & 2 ** maxLen - 1) >> idx) ^ ((y >> yShift) << yShift);
+  return (((x << idx) & 2**maxLen - 1) >> idx) ^ ((y >> yShift) << yShift);
 }
 
 /**
@@ -23,15 +23,19 @@ function mutate(xs, maxLen = 32) {
   while (idx === idx2) idx2 = Math.floor(randInRange(maxLen));
 
   /* Move p1'th to rightmost side */
-  const bit1 =  (xs >>> idx) & 1;
+  const bit1 = (xs >>> idx) & 1;
+
   /* Move p2'th to rightmost side */
-  const bit2 =  (xs >>> idx2) & 1;
+  const bit2 = (xs >>> idx2) & 1;
+
   /* XOR the two bits */
   let x = (bit1 ^ bit2);
+
   /* Put the xor bit back to their original positions */
   x = (x << idx) | (x << idx2);
+
   /* XOR 'x' with the original number so that the two sets are swapped */
   return xs ^ x;
 }
 
-module.exports = {mutate, crossOver};
+module.exports = { mutate, crossOver };

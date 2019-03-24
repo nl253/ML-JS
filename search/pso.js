@@ -1,5 +1,5 @@
 const log = require('../utils/log');
-const { randInRange } = require('../utils/random');
+const { randInRange } = require('../utils');
 
 class PSO {
   /**

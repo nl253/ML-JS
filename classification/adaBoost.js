@@ -1,7 +1,7 @@
 const {majorityVote} = require('../utils');
 const log = require('../utils/log');
 const {Classifier} = require('./index');
-const Tree = require('../classification/randTree');
+const Tree = require('./extraTree');
 const NB = require('../classification/naiveBayes');
 
 class AdaBoost extends Classifier {

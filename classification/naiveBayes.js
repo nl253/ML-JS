@@ -1,4 +1,4 @@
-const { argMax } = require('../utils/math');
+const { argMax } = require('../utils');
 const { Classifier } = require('.');
 
 class NaiveBayes extends Classifier {

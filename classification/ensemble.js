@@ -1,10 +1,8 @@
-const {mean} = require('../utils');
-const {shuffle, majorityVote} = require('../utils');
+const { mean, majorityVote, shuffle } = require('../utils');
 const log = require('../utils/log');
 const DF = require('../DF');
 
 class Ensemble {
-
   /**
    * @param {!DF} data
    * @param {!Array<*>} labels
@@ -23,7 +21,7 @@ class Ensemble {
   }
 
   /**
-   * @return {Number} accuracy score in [0, 1]
+   * @returns {Number} accuracy score in [0, 1]
    */
   get score() {
     return this.aggScore(this.ensemble.map(c => c.score));
@@ -34,13 +32,12 @@ class Ensemble {
    */
   fit() {
     // train more classifiers and then select best
-    let classifiers = [];
+    const classifiers = [];
     const noClassifiers = Math.floor(this.ensemble.length * 1.5);
     // const noTrainingData = Math.floor(this.data.length * (1 - this.r));
     const noTrainingData = this.data.length;
 
     for (let c = 0; c < noClassifiers; c++) {
-
       const iter = this.data.slice(0, noTrainingData).rowIter;
       const jointWithLabels = Array(noTrainingData).fill(0).map((_, idx) => {
         const row = iter.next().value;
@@ -64,9 +61,9 @@ class Ensemble {
 
     this.ensemble = classifiers
       // compute scores only once, then compare them
-      .map(c => ({c, score: c.score}))
+      .map(c => ({ c, score: c.score }))
       // sort DESCENDING
-      .sort(({c: c1, score: score1}, {c: c2, score: score2}) => {
+      .sort(({ c: c1, score: score1 }, { c: c2, score: score2 }) => {
         if (score1 > score2) return -1;
         else if (score1 < score2) return 1;
         else return 0;
@@ -74,22 +71,22 @@ class Ensemble {
       // get top best
       .slice(0, this.ensemble.length)
       // drop score
-      .map(({c}) => c);
+      .map(({ c }) => c);
   }
 
   /**
    * @param {Array<*>} x
-   * @return {*} prediction
+   * @returns {*} prediction
    */
   predict(x) {
     return this.aggPred(this.ensemble.map(c => c.predict(x)));
   }
 
   /**
-   * @return {!String} string representation of the object
+   * @returns {!String} string representation of the object
    */
   toString() {
-    return `${this.name} { ${this.ensemble.map(c => c.toString()).join(', ')} }`;
+    return `${this.constructor.name} { ${this.ensemble.map(c => c.toString()).join(', ')} }`;
   }
 }
 

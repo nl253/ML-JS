@@ -2,11 +2,11 @@
  * TODO KNN with string features d(a, b) == a != b
  * TODO r cannot be 1.0
  */
-const { Classifier } = require('./index');
-const { toTypedArray, majorityVote, sampleWOR, getTypedArray, arange } = require('../utils');
+const { Regressor } = require('./index');
+const { toTypedArray, sampleWOR, getTypedArray, arange } = require('../utils');
 
 
-class KNN extends Classifier {
+class KNN extends Regressor {
   /**
    * @param {!DF} data
    * @param {Array<*>} labels
@@ -16,12 +16,12 @@ class KNN extends Classifier {
    * @param {?Array<!Number>|?TypedArray} reprs
    * @param reprPerLabel
    */
-  constructor(data, labels, k = 3, nReprs = null, weights = null, reprs = null, reprPerLabel = 12) {
+  constructor(data, labels, r = 0.1, k = 3, nReprs = null, weights = null, reprs = null, reprPerLabel = 12) {
     /*
      * KNN does not need any training data but some parts of the api require non-empty training data frame
      * so include exactly 1 example in the data frame
      */
-    super(data, labels, 0.1);
+    super(data, labels, r);
 
     // number of neighbours
     this.k = k;
@@ -84,7 +84,6 @@ class KNN extends Classifier {
    * @returns {*} prediction
    */
   predict(x) {
-    debugger;
     const { dataTrain } = this;
     const bestIdx = getTypedArray('Uint32', this.k);
     const bestD = getTypedArray('Float64', this.k).fill(Infinity);
@@ -103,7 +102,7 @@ class KNN extends Classifier {
       }
     }
 
-    return majorityVote(Array.from(bestIdx).map(idx => this.labelsTrain[idx]));
+    return mean(Array.from(bestIdx).map(idx => this.labelsTrain[idx]));
   }
 }
 

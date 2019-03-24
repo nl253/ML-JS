@@ -1,4 +1,4 @@
-const { combinations } = require('./utils/optimization');
+const { combinations } = require('./utils');
 
 class AssocRules {
   /**
