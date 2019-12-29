@@ -1,7 +1,7 @@
 {
   "author": "Norbert Logiewa <norbertlogiewa96@gmail.com>",
   "bugs": {
-    "url": "https://github.com/nl253/ML-JS/issues"
+    "url": "https://github.com/nl253/ML/issues"
   },
   "dependencies": {
     "csv": "^5.1.1",
@@ -35,16 +35,16 @@
     "datasets/suicide/suicide.csv",
     "datasets/iris/iris.csv"
   ],
-  "homepage": "https://github.com/nl253/ML-JS/blob/master/README.md",
+  "homepage": "https://github.com/nl253/ML/blob/master/README.md",
   "keywords": [],
   "license": "MIT",
   "main": "index.js",
   "name": "ml-js",
   "private": false,
-  "readme": "https://github.com/nl253/ML-JS/blob/master/README.md",
+  "readme": "https://github.com/nl253/ML/blob/master/README.md",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nl253/ML-JS"
+    "url": "https://github.com/nl253/ML"
   },
   "version": "0.0.1"
 }
